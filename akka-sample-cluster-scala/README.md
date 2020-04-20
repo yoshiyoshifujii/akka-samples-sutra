@@ -76,3 +76,47 @@ Actorのソースコードを再度確認します。
 メンバーシップイベントは、クラスターの状態を見れますが、クラスターの他のノード上のActorへのアクセスには役立ちません。
 他のノードのActorにアクセスしたい場合は、[Receptionist](https://doc.akka.io/docs/akka/2.6/typed/actor-discovery.html#receptionist)を使います。
 
+# Worker登録の例
+
+`Receptionist`は、クラスターを使用していない単一のJVMアプリとクラスターアプリの両方で機能するサービスレジストリです。
+`ActorRef`は、`ServiceKey`を使用してreceptionistに登録されます。
+サービスキーは、登録されたアクターが受け入れるメッセージのタイプと文字列識別子で定義されます。
+
+ここでは、バックエンドの役割を持つノードでのみワーカーがreceptionistに自分を登録して、フロントエンドノードが作業を実行できるワーカーを認識できるようにする方法を示す例を見てみましょう。
+ノードの役割はセットであるため、ノードは両方の役割を持つ可能性があることに注意してください。
+ただし、提供されるメインでは1つの役割しか許可されません。
+
+サンプルアプリケーションは、テキストを変換するサービスを提供します。
+定期的な間隔で、フロントエンドはテキストを処理するための外部リクエストをシミュレートし、テキストがある場合は、利用可能なワーカーに転送します。
+
+ワーカーの検出は動的であるため、`backend`ノードと`frontend`ノードの両方をクラスターに動的に追加できます。
+
+変換ジョブを実行するバックエンドワーカーは、[TransformationBackend.scala](./src/main/scala/sample/cluster/transformation/Worker.scala) で定義されています。
+ワーカーを起動すると、ワーカーがreceptionistに登録され、クラスター内の任意のノードの`ServiceKey`を通じてワーカーを検出できるようになります。
+
+ユーザーのジョブをシミュレートし、利用可能なワーカーを追跡するフロントエンドは、[Frontend.scala](./src/main/scala/sample/cluster/transformation/Frontend.scala)で定義されています。
+アクターは、 `WorkerServiceKey`を使用して `Receptionist`にサブスクライブし、クラスター内の使用可能なワーカーのセットが変更されたときに更新を受け取ります。
+ワーカーが死亡するか、そのノードがクラスターから削除された場合、フロントエンドはワーカーを監視する必要が無いため、receptionistが更新されたリストを送信します。
+
+このサンプルを実行するには、以前に開始したクラスターサンプルをすべてシャットダウンしてから `sbt runMain sample.cluster.transformation.Main` と入力してください。
+
+TransformationApp は、5つのActorシステム(Clusterメンバー)を同じJVMプロセス上で開始します。
+それらを別々のプロセスで実行する方が興味深い場合があります。
+アプリケーションを止めて3つのターミナルウィンドウを開きましょう。
+
+```bash
+# terminal1
+$ sbt "runMain sample.cluster.transformation.Main backend 25251"
+# terminal2
+$ sbt "runMain sample.cluster.transformation.Main backend 25252"
+# terminal3
+$ sbt "runMain sample.cluster.transformation.Main backend 0"
+# terminal4
+$ sbt "runMain sample.cluster.transformation.Main frontend 0"
+# terminal5
+$ sbt "runMain sample.cluster.transformation.Main frontend 0"
+```
+Akkaに組み込まれているコンポーネントには、receptionistにサブスクライブし、利用可能なアクターを追跡して、そのようなやり取りを大幅に簡素化するコンポーネントがあります。
+それがグループルーターです。 
+次のセクションでそれらをどのように使用できるかを見てみましょう！
+
