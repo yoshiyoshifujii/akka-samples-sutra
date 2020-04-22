@@ -45,7 +45,7 @@ object Main extends App {
     startup("compute", 0)
     startup("client", 0)
   } else {
-    require(args.size == 2, "Usage: role port")
+    require(args.length == 2, "Usage: role port")
     startup(args(0), args(1).toInt)
   }
 

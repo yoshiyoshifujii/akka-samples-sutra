@@ -38,11 +38,11 @@ object StatsAggregator {
 
   sealed trait Event
   private case object Timeout extends Event
-  private case class CalculationComplete(length: Int) extends Event
+  private case class CalculationCompleted(length: Int) extends Event
 
   def waiting(replyTo: ActorRef[StatsService.Response], expectedResponse: Int, results: List[Int]):Behavior[StatsAggregator.Event] =
     Behaviors.receiveMessage {
-      case CalculationComplete(length) =>
+      case CalculationCompleted(length) =>
         val newResults  = results :+ length
         if (newResults.size == expectedResponse) {
           val meanWordLength = newResults.sum.toDouble / newResults.size
@@ -60,7 +60,7 @@ object StatsAggregator {
     Behaviors.setup { ctx =>
       ctx.setReceiveTimeout(3.seconds, Timeout)
       val responseAdapter = ctx.messageAdapter[StatsWorker.Processed](processed =>
-        CalculationComplete(processed.length)
+        CalculationCompleted(processed.length)
       )
 
       words.foreach { word =>
