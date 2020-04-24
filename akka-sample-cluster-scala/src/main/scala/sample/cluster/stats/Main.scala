@@ -8,7 +8,7 @@ import com.typesafe.config.ConfigFactory
 
 object Main extends App {
 
-  val StatsServiceKey = ServiceKey[StatsService.ProcessText]("StatsService")
+  lazy val StatsServiceKey: ServiceKey[StatsService.ProcessText] = ServiceKey[StatsService.ProcessText]("StatsService")
 
   private object RootBehavior {
     def apply(): Behavior[Nothing] = Behaviors.setup[Nothing] { ctx =>
