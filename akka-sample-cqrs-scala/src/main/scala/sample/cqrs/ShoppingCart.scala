@@ -48,7 +48,7 @@ object ShoppingCart {
     val empty: State = State(items = Map.empty, checkoutDate = None)
   }
 
-  final case class Summary(items: Map[ItemId, Quantity], isCheckOut: Boolean) extends CborSerializable
+  final case class Summary(items: Map[ItemId, Quantity], checkedOut: Boolean) extends CborSerializable
 
   // Command
 
