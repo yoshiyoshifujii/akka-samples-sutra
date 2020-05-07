@@ -12,7 +12,10 @@ lazy val `akka-samples-discovery` = project
       "com.typesafe.akka" %% "akka-discovery" % AkkaVersion,
       "com.typesafe.akka" %% "akka-remote" % AkkaVersion,
       "com.typesafe.akka" %% "akka-cluster" % AkkaVersion,
+      "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion,
       "com.typesafe.akka" %% "akka-multi-node-testkit" % AkkaVersion % Test,
+      "com.typesafe.akka" %% "akka-slf4j"               % AkkaVersion,
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
       "org.scalatest" %% "scalatest" % "3.1.0" % Test
     ),
     fork in run := false,
