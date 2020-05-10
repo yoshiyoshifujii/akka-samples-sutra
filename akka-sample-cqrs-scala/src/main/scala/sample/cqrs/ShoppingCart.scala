@@ -18,7 +18,6 @@ object ShoppingCart {
   final case class Quantity(value: Int) extends CborSerializable {
     def <=(i: Quantity): Boolean = value <= i.value
   }
-
   object Quantity {
     val zero: Quantity = Quantity(0)
   }
@@ -156,7 +155,7 @@ object ShoppingCart {
     ClusterSharding(system).init(Entity(EntityKey) { entityContext =>
       val n = math.abs(entityContext.entityId.hashCode % eventProcessorSettings.parallelism)
       val eventProcessorTag = eventProcessorSettings.tagPrefix + "-" + n
-      ShoppingCart.apply(CartId(entityContext.entityId), Set(eventProcessorTag))
+      ShoppingCart(CartId(entityContext.entityId), Set(eventProcessorTag))
     })
   }
 
