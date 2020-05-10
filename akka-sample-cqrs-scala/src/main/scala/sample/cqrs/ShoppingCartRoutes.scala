@@ -11,6 +11,16 @@ import scala.concurrent.Future
 object ShoppingCartRoutes {
   final case class AddItem(cartId: String, itemId: String, quantity:Int)
   final case class UpdateItem(cartId: String, itemId: String, quantity: Int)
+  final case class Summary(items: Map[String, Int], checkedOut: Boolean)
+  object Summary {
+    def of(summary: ShoppingCart.Summary): Summary =
+      new Summary(
+        items = summary.items.map {
+          case (ShoppingCart.ItemId(itemId), ShoppingCart.Quantity(quantity)) => itemId -> quantity
+        },
+        checkedOut = summary.checkedOut
+      )
+  }
 }
 
 class ShoppingCartRoutes()(implicit system: ActorSystem[_]) {
@@ -35,7 +45,7 @@ class ShoppingCartRoutes()(implicit system: ActorSystem[_]) {
                 entityRef.ask(ShoppingCart.AddItem(ShoppingCart.ItemId(data.itemId), ShoppingCart.Quantity(data.quantity), _))
               onSuccess(reply) {
                 case ShoppingCart.Accepted(summary) =>
-                  complete(StatusCodes.OK -> summary)
+                  complete(StatusCodes.OK -> Summary.of(summary))
                 case ShoppingCart.Rejected(reason) =>
                   complete(StatusCodes.BadRequest -> reason)
               }
@@ -53,7 +63,7 @@ class ShoppingCartRoutes()(implicit system: ActorSystem[_]) {
               val reply: Future[ShoppingCart.Confirmation] = entityRef.ask(command)
               onSuccess(reply) {
                 case ShoppingCart.Accepted(summary) =>
-                  complete(StatusCodes.OK -> summary)
+                  complete(StatusCodes.OK -> Summary.of(summary))
                 case ShoppingCart.Rejected(reason) =>
                   complete(StatusCodes.BadRequest -> reason)
               }
@@ -65,7 +75,7 @@ class ShoppingCartRoutes()(implicit system: ActorSystem[_]) {
               val entityRef = sharding.entityRefFor(ShoppingCart.EntityKey, cartId)
               onSuccess(entityRef.ask(ShoppingCart.Get)) { summary =>
                 if (summary.items.isEmpty) complete(StatusCodes.NotFound)
-                else complete(summary)
+                else complete(Summary.of(summary))
               }
             }, path("checkout") {
               post {
@@ -73,7 +83,7 @@ class ShoppingCartRoutes()(implicit system: ActorSystem[_]) {
                 val reply: Future[ShoppingCart.Confirmation] = entityRef.ask(ShoppingCart.Checkout)
                 onSuccess(reply) {
                   case ShoppingCart.Accepted(summary) =>
-                    complete(StatusCodes.OK -> summary)
+                    complete(StatusCodes.OK -> Summary.of(summary))
                   case ShoppingCart.Rejected(reason) =>
                     complete(StatusCodes.BadRequest -> reason)
                 }
