@@ -6,6 +6,7 @@ import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 object Main extends App {
 
@@ -21,11 +22,17 @@ object Main extends App {
 
   import system.dispatcher
 
-  val lookup: Future[ServiceDiscovery.Resolved] = serviceDiscovery.lookup(Lookup("akka.io"), 1.second)
+  val lookup = serviceDiscovery.lookup(Lookup("akka.io"), 1.second)
     .map { a =>
-      println(a)
+      a.getAddresses.asScala.foreach { b =>
+        println(b)
+      }
       a
     }
+      .flatMap { _ =>
+        system.terminate()
+      }
   Await.result(lookup, 5.seconds)
+
 
 }
