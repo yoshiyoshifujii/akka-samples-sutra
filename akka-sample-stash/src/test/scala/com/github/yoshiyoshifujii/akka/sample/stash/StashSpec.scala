@@ -2,7 +2,7 @@ package com.github.yoshiyoshifujii.akka.sample.stash
 
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
-import akka.actor.typed.scaladsl.{Behaviors, StashOverflowException}
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, Scheduler}
 import akka.util.Timeout
 import org.scalatest.BeforeAndAfterAll
