@@ -29,9 +29,13 @@ object MyPersistentBehavior {
         case EffectsNone => Effect.none.thenRun(s => println(s"command Effects none. State is $state, s is $s"))
         case EffectsUnhandled =>
           Effect.unhandled.thenRun(s => println(s"command Effects unhandled. State is $state, s is $s"))
-        case EffectsStop       => Effect.stop().thenRun(s => println(s"command Effects stop. State is $state, s is $s"))
-        case EffectsStash      => Effect.stash()
-        case EffectsUnStashAll => Effect.unstashAll()
+        case EffectsStop => Effect.stop().thenRun(s => println(s"command Effects stop. State is $state, s is $s"))
+        case EffectsStash =>
+          println(s"command Effects stash. State is $state")
+          Effect.stash()
+        case EffectsUnStashAll =>
+          println(s"command Effects unstashAll. State is $state")
+          Effect.unstashAll()
       }
 
   private val eventHandler: (State, Event) => State =
