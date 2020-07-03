@@ -42,11 +42,13 @@ class MyPersistentBehaviorSpec
     "Add" in {
       val result = eventSourcedTestKit.runCommand(MyPersistentBehavior.Add("data-1"))
       result.stateOfType[MyPersistentBehavior.State].history should contain("data-1")
+      result.stateOfType[MyPersistentBehavior.State].history.size shouldBe 1
     }
 
     "Clear" in {
       val result1 = eventSourcedTestKit.runCommand(MyPersistentBehavior.Add("data-1"))
       result1.stateOfType[MyPersistentBehavior.State].history should contain("data-1")
+      result1.stateOfType[MyPersistentBehavior.State].history.size shouldBe 1
       val result2 = eventSourcedTestKit.runCommand(MyPersistentBehavior.Clear)
       result2.stateOfType[MyPersistentBehavior.State].history shouldBe Nil
     }
