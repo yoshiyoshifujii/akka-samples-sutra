@@ -1,7 +1,7 @@
 package com.github.yoshiyoshifujii.akka.sample.behaviorsAsFiniteStateMachines
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ ActorRef, Behavior }
 
 import scala.concurrent.duration._
 
@@ -13,12 +13,12 @@ object Buncher {
 
   sealed trait Event
   final case class SetTarget(ref: ActorRef[Batch]) extends Event
-  final case class Queue(obj: SomeObj) extends Event
-  case object Flush extends Event
-  private case object Timeout extends Event
+  final case class Queue(obj: SomeObj)             extends Event
+  case object Flush                                extends Event
+  private case object Timeout                      extends Event
 
   sealed trait Data
-  case object Uninitialized extends Data
+  case object Uninitialized                                           extends Data
   final case class Todo(target: ActorRef[Batch], queue: Seq[SomeObj]) extends Data
 
   private def active(data: Todo): Behavior[Event] =
@@ -51,4 +51,3 @@ object Buncher {
   def apply(): Behavior[Event] = idle(Uninitialized)
 
 }
-

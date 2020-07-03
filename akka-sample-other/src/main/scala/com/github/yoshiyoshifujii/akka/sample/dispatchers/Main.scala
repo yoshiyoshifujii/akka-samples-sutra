@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.akka.sample.dispatchers
 
-import akka.actor.typed.{ActorSystem, Behavior}
+import akka.actor.typed.{ ActorSystem, Behavior }
 import akka.actor.typed.scaladsl.Behaviors
 import com.typesafe.config.ConfigFactory
 
@@ -9,6 +9,7 @@ object Main extends App {
   object YourBehavior {
     sealed trait Command
     final object Something extends Command
+
     def apply(): Behavior[Command] =
       Behaviors.setup { context =>
         context.log.info("context.executionContext is {}", context.executionContext)
@@ -20,6 +21,7 @@ object Main extends App {
   }
 
   object Guardian {
+
     def apply(): Behavior[AnyRef] =
       Behaviors.setup { context =>
         import akka.actor.typed.DispatcherSelector
@@ -37,8 +39,11 @@ object Main extends App {
 
   }
 
-  val system = ActorSystem(Guardian(), "dispatchers", ConfigFactory.parseString(
-    """
+  val system = ActorSystem(
+    Guardian(),
+    "dispatchers",
+    ConfigFactory
+      .parseString("""
       |my-dispatcher {
       |  type = "Dispatcher"
       |  executor = "default-executor"
@@ -65,7 +70,8 @@ object Main extends App {
       |  }
       |  throughput = 1
       |}
-      |""".stripMargin).withFallback(ConfigFactory.load()))
+      |""".stripMargin).withFallback(ConfigFactory.load())
+  )
 
   system.terminate()
 }

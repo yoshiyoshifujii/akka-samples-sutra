@@ -16,7 +16,7 @@ class AsyncTestingExampleSpec extends AnyFreeSpec with BeforeAndAfterAll with Ma
 
     "The following demonstrates" in {
       val pinger = testKit.spawn(Echo(), "ping")
-      val probe = testKit.createTestProbe[Echo.Pong]
+      val probe  = testKit.createTestProbe[Echo.Pong]
 
       pinger ! Echo.Ping("hello", probe.ref)
       probe.expectMessage(Echo.Pong("hello"))

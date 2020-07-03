@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.akka.sample.mailboxes
 
-import akka.actor.typed.{ActorSystem, Behavior, MailboxSelector}
+import akka.actor.typed.{ ActorSystem, Behavior, MailboxSelector }
 import akka.actor.typed.scaladsl.Behaviors
 import com.typesafe.config.ConfigFactory
 
@@ -24,14 +24,17 @@ object Main extends App {
 
   }
 
-  val system = ActorSystem(Guardian(), "mailboxes", ConfigFactory.parseString(
-    """
+  val system = ActorSystem(
+    Guardian(),
+    "mailboxes",
+    ConfigFactory.parseString("""
       |my-app {
       |  my-special-mailbox {
       |    mailbox-type = "akka.dispatch.SingleConsumerOnlyUnboundedMailbox"
       |  }
       |}
-      |""".stripMargin))
+      |""".stripMargin)
+  )
 
   system.terminate()
 }

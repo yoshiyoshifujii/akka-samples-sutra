@@ -1,14 +1,15 @@
 package com.github.yoshiyoshifujii.akka.sample.dispatchers
 
-import akka.actor.typed.{ActorSystem, Behavior, DispatcherSelector}
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.{ ActorSystem, Behavior, DispatcherSelector }
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import com.typesafe.config.ConfigFactory
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ ExecutionContext, Future }
 
 object Blocking extends App {
 
   object BlockingActor {
+
     def apply(): Behavior[Int] =
       Behaviors.receiveMessage { i =>
         Thread.sleep(5000)
@@ -18,6 +19,7 @@ object Blocking extends App {
   }
 
   object PrintActor {
+
     def apply(): Behavior[Int] =
       Behaviors.setup { context =>
         Behaviors.receiveMessage { i =>
@@ -27,7 +29,9 @@ object Blocking extends App {
       }
   }
 
-  private def triggerFutureBlockingOperation(i: Int)(implicit ec: ExecutionContext, context: ActorContext[_]): Future[Unit] = {
+  private def triggerFutureBlockingOperation(
+      i: Int
+  )(implicit ec: ExecutionContext, context: ActorContext[_]): Future[Unit] = {
     context.log.info("Calling blocking Future: {} - {}", i, ec)
     Future {
       Thread.sleep(5000)
@@ -36,9 +40,11 @@ object Blocking extends App {
   }
 
   object BlockingFutureActor {
+
     def apply(): Behavior[Int] =
       Behaviors.setup { implicit context =>
-        implicit val executionContext: ExecutionContext = context.executionContext // The key problematic line here is this:
+        implicit val executionContext: ExecutionContext =
+          context.executionContext // The key problematic line here is this:
         Behaviors.receiveMessage { i =>
           triggerFutureBlockingOperation(i)
           Behaviors.same
@@ -47,9 +53,11 @@ object Blocking extends App {
   }
 
   object SeparateDispatcherFutureActor {
+
     def apply(): Behavior[Int] =
       Behaviors.setup { implicit context =>
-        implicit val ex: ExecutionContext = context.system.dispatchers.lookup(DispatcherSelector.fromConfig("my-blocking-dispatcher"))
+        implicit val ex: ExecutionContext =
+          context.system.dispatchers.lookup(DispatcherSelector.fromConfig("my-blocking-dispatcher"))
         Behaviors.receiveMessage { i =>
           triggerFutureBlockingOperation(i)
           Behaviors.same
@@ -107,8 +115,11 @@ object Blocking extends App {
         }
     }
 
-    val system = ActorSystem[Nothing](Guardian(), "blocking-pattern3", ConfigFactory.parseString(
-      """
+    val system = ActorSystem[Nothing](
+      Guardian(),
+      "blocking-pattern3",
+      ConfigFactory
+        .parseString("""
         |my-blocking-dispatcher {
         |  type = Dispatcher
         |  executor = "thread-pool-executor"
@@ -117,7 +128,8 @@ object Blocking extends App {
         |  }
         |  throughput = 1
         |}
-        |""".stripMargin).withFallback(ConfigFactory.load))
+        |""".stripMargin).withFallback(ConfigFactory.load)
+    )
 
     sys.addShutdownHook {
       system.terminate()

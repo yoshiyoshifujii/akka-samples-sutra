@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.akka.sample.asynchronousTesting
 
-import akka.actor.testkit.typed.scaladsl.{LogCapturing, ManualTime, ScalaTestWithActorTestKit, TestProbe}
+import akka.actor.testkit.typed.scaladsl.{ LogCapturing, ManualTime, ScalaTestWithActorTestKit, TestProbe }
 import akka.actor.typed.scaladsl.Behaviors
 import org.scalatest.wordspec.AnyWordSpecLike
 

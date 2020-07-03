@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.akka.sample.asynchronousTesting
 
-import akka.actor.typed.{ActorRef, Scheduler}
+import akka.actor.typed.{ ActorRef, Scheduler }
 import akka.util.Timeout
 
 import scala.concurrent.Future

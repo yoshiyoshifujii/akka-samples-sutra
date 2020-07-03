@@ -2,9 +2,9 @@ package com.github.yoshiyoshifujii.akka.sample.behaviorsAsFiniteStateMachines
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.time.{Seconds, Span}
+import org.scalatest.time.{ Seconds, Span }
 
 import scala.concurrent.ExecutionContext
 
@@ -19,7 +19,6 @@ class BuncherSpec extends AnyFreeSpec with BeforeAndAfterAll with ScalaFutures w
 
   override implicit def patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(60, Seconds)), interval = scaled(Span(1, Seconds)))
-
 
   "Buncher" - {
 

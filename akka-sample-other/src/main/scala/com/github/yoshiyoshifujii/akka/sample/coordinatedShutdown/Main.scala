@@ -1,9 +1,9 @@
 package com.github.yoshiyoshifujii.akka.sample.coordinatedShutdown
 
 import akka.Done
-import akka.actor.{Cancellable, CoordinatedShutdown}
+import akka.actor.{ Cancellable, CoordinatedShutdown }
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
+import akka.actor.typed.{ ActorRef, ActorSystem, Behavior, Scheduler }
 import akka.util.Timeout
 
 import scala.concurrent.ExecutionContext
@@ -30,9 +30,9 @@ object Main extends App {
   }
 
   val system: ActorSystem[MyActor.Command] = ActorSystem(MyActor(), "my-actor")
-  val myActor: ActorRef[MyActor.Command] = system.ref
+  val myActor: ActorRef[MyActor.Command]   = system.ref
 
-  implicit val timeout: Timeout = Timeout(3.seconds)
+  implicit val timeout: Timeout     = Timeout(3.seconds)
   implicit val scheduler: Scheduler = system.scheduler
   implicit val ex: ExecutionContext = system.executionContext
   import akka.actor.typed.scaladsl.AskPattern._

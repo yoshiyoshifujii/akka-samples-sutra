@@ -2,8 +2,8 @@ package com.github.yoshiyoshifujii.akka.sample.mailboxes
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import akka.actor.{ActorRef, ActorSystem}
-import akka.dispatch.{Envelope, MailboxType, MessageQueue, ProducesMessageQueue}
+import akka.actor.{ ActorRef, ActorSystem }
+import akka.dispatch.{ Envelope, MailboxType, MessageQueue, ProducesMessageQueue }
 import com.typesafe.config.Config
 
 object CustomMailboxType extends App {
@@ -11,6 +11,7 @@ object CustomMailboxType extends App {
   trait MyUnboundedMessageQueueSemantics
 
   object MyUnboundedMailbox {
+
     class MyMessageQueue extends MessageQueue with MyUnboundedMessageQueueSemantics {
 
       private final val queue = new ConcurrentLinkedQueue[Envelope]()

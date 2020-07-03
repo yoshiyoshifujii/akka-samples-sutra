@@ -26,7 +26,7 @@ class ObservingMockedBehaviorSpec extends AnyFreeSpec with BeforeAndAfterAll {
         msg.replyTo ! Success(msg.i)
         Behaviors.same
       }
-      val probe = testKit.createTestProbe[Message]
+      val probe           = testKit.createTestProbe[Message]
       val mockedPublisher = testKit.spawn(Behaviors.monitor(probe.ref, mockedBehavior))
 
       val producer = new Producer(mockedPublisher)
