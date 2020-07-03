@@ -2,15 +2,15 @@ package com.github.yoshiyoshifujii.akka.sample.persistence.eventSourcing
 
 import akka.actor.typed.Behavior
 import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior }
 import com.github.yoshiyoshifujii.akka.sample.persistence.serialization.CborSerializable
 
 object MyPersistentBehavior {
-  sealed trait Command extends CborSerializable
+  sealed trait Command               extends CborSerializable
   final case class Add(data: String) extends Command
   case object Clear                  extends Command
 
-  sealed trait Event extends CborSerializable
+  sealed trait Event                   extends CborSerializable
   final case class Added(data: String) extends Event
   case object Cleared                  extends Event
 

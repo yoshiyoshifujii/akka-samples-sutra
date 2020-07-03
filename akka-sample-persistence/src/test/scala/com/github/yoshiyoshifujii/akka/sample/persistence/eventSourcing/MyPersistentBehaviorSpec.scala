@@ -1,14 +1,15 @@
 package com.github.yoshiyoshifujii.akka.sample.persistence.eventSourcing
 
-import akka.actor.testkit.typed.scaladsl.{LogCapturing, ScalaTestWithActorTestKit}
+import akka.actor.testkit.typed.scaladsl.{ LogCapturing, ScalaTestWithActorTestKit }
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import com.typesafe.config.ConfigFactory
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.wordspec.AnyWordSpecLike
 
 class MyPersistentBehaviorSpec
-    extends ScalaTestWithActorTestKit(ConfigFactory.parseString(
-      """
+    extends ScalaTestWithActorTestKit(
+      ConfigFactory
+        .parseString("""
          |akka {
          |  actor {
          |    serializers {
@@ -19,7 +20,8 @@ class MyPersistentBehaviorSpec
          |    }
          |  }
          |}
-         |""".stripMargin).withFallback(EventSourcedBehaviorTestKit.config))
+         |""".stripMargin).withFallback(EventSourcedBehaviorTestKit.config)
+    )
     with AnyWordSpecLike
     with BeforeAndAfterEach
     with LogCapturing {
@@ -40,7 +42,13 @@ class MyPersistentBehaviorSpec
     "Add" in {
       val result = eventSourcedTestKit.runCommand(MyPersistentBehavior.Add("data-1"))
       result.stateOfType[MyPersistentBehavior.State].history should contain("data-1")
+    }
 
+    "Clear" in {
+      val result1 = eventSourcedTestKit.runCommand(MyPersistentBehavior.Add("data-1"))
+      result1.stateOfType[MyPersistentBehavior.State].history should contain("data-1")
+      val result2 = eventSourcedTestKit.runCommand(MyPersistentBehavior.Clear)
+      result2.stateOfType[MyPersistentBehavior.State].history shouldBe Nil
     }
 
   }
