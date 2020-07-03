@@ -9,6 +9,11 @@ object MyPersistentBehavior {
   sealed trait Command               extends CborSerializable
   final case class Add(data: String) extends Command
   case object Clear                  extends Command
+  case object EffectsNone            extends Command
+  case object EffectsUnhandled       extends Command
+  case object EffectsStop            extends Command
+  case object EffectsStash           extends Command
+  case object EffectsUnStashAll      extends Command
 
   sealed trait Event                   extends CborSerializable
   final case class Added(data: String) extends Event
@@ -19,8 +24,14 @@ object MyPersistentBehavior {
   private val commandHandler: (State, Command) => Effect[Event, State] =
     (state, command) =>
       command match {
-        case Add(data) => Effect.persist(Added(data))
-        case Clear     => Effect.persist(Cleared)
+        case Add(data)   => Effect.persist(Added(data)).thenRun(s => println(s"command Add. State is $state, s is $s"))
+        case Clear       => Effect.persist(Cleared).thenRun(s => println(s"command Clear. State is $state, s is $s"))
+        case EffectsNone => Effect.none.thenRun(s => println(s"command Effects none. State is $state, s is $s"))
+        case EffectsUnhandled =>
+          Effect.unhandled.thenRun(s => println(s"command Effects unhandled. State is $state, s is $s"))
+        case EffectsStop       => Effect.stop().thenRun(s => println(s"command Effects stop. State is $state, s is $s"))
+        case EffectsStash      => Effect.stash()
+        case EffectsUnStashAll => Effect.unstashAll()
       }
 
   private val eventHandler: (State, Event) => State =
