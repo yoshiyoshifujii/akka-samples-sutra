@@ -56,7 +56,7 @@ object AccountEntity {
         case AccountCreated    => throw new IllegalStateException(s"unexpected event [$event] in state [OpenedAccount]")
       }
 
-    def canWithdraw(amount: BigDecimal): Boolean = balance - amount > Zero
+    def canWithdraw(amount: BigDecimal): Boolean = balance - amount >= Zero
   }
 
   case object ClosedAccount extends Account {
