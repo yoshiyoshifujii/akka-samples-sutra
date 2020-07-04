@@ -25,24 +25,18 @@ class BlogPostEntitySpec
          |""".stripMargin).withFallback(EventSourcedBehaviorTestKit.config)
     )
     with AnyWordSpecLike
-    with BeforeAndAfterEach
     with LogCapturing {
-
-  private val eventSourcedTestKit =
-    EventSourcedBehaviorTestKit[BlogPostEntity.Command, BlogPostEntity.Event, BlogPostEntity.State](
-      system,
-      BlogPostEntity("entity-id-1", PersistenceId.ofUniqueId("persistence-id-1"))
-    )
-
-  override protected def beforeEach(): Unit = {
-    super.beforeEach()
-    eventSourcedTestKit.clear()
-  }
 
   "BlogPostEntity" must {
     import BlogPostEntity._
 
     "success" in {
+      val eventSourcedTestKit =
+        EventSourcedBehaviorTestKit[BlogPostEntity.Command, BlogPostEntity.Event, BlogPostEntity.State](
+          system,
+          BlogPostEntity("entity-id-1", PersistenceId.ofUniqueId("persistence-id-1"))
+        )
+
       val postId           = "post-id-1"
       val content          = PostContent(postId, "title-1", "body-1")
       val addPostDoneProbe = testKit.createTestProbe[AddPostDone]
@@ -95,6 +89,23 @@ class BlogPostEntitySpec
       postContentProbe2.expectMessageType[PostContent] shouldBe newContent
 
       eventSourcedTestKit.restart()
+    }
+
+    "Event adapters" in {
+      val eventSourcedTestKit =
+        EventSourcedBehaviorTestKit[BlogPostEntity.Command, BlogPostEntity.Event, BlogPostEntity.State](
+          system,
+          BlogPostEntity.applyWithEventAdapter("entity-id-1", PersistenceId.ofUniqueId("persistence-id-1"))
+        )
+
+      val postId           = "post-id-1"
+      val content          = PostContent(postId, "title-1", "body-1")
+      val addPostDoneProbe = testKit.createTestProbe[AddPostDone]
+
+      val result1 = eventSourcedTestKit.runCommand(AddPost(content, addPostDoneProbe.ref))
+      result1.event.asInstanceOf[Wrapper[PostAdded]].event.content shouldBe content
+      result1.stateOfType[DraftState].content shouldBe content
+      addPostDoneProbe.expectMessageType[AddPostDone].postId shouldBe content.postId
     }
 
   }

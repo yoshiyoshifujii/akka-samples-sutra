@@ -2,9 +2,9 @@ package com.github.yoshiyoshifujii.akka.sample.persistence.eventSourcing
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
-import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
-import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import akka.actor.typed.{ ActorRef, Behavior }
+import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, Recovery }
+import akka.persistence.typed.{ EventAdapter, EventSeq, PersistenceId, RecoveryCompleted }
 import com.github.yoshiyoshifujii.akka.sample.persistence.serialization.CborSerializable
 
 object BlogPostEntity {
@@ -117,10 +117,60 @@ object BlogPostEntity {
           throw new IllegalStateException(s"unexpected event [$event] in state [$state]")
       }
 
+  case class Wrapper[T](event: T) extends CborSerializable
+
+  class WrapperEventAdapter[T] extends EventAdapter[T, Wrapper[T]] {
+
+    override def toJournal(e: T): Wrapper[T] = {
+      println(s"wrapper event adapter toJournal. e [$e]")
+      Wrapper(e)
+    }
+
+    override def fromJournal(p: Wrapper[T], manifest: String): EventSeq[T] = {
+      println(s"wrapper event adapter fromJournal. p [$p], manifest [$manifest]")
+      EventSeq.single(p.event)
+    }
+
+    override def manifest(event: T): String = {
+      println(s"wrapper event adapter manifest. event [$event]")
+      ""
+    }
+  }
+
   def apply(entityId: String, persistenceId: PersistenceId): Behavior[Command] =
     Behaviors.setup { context =>
       context.log.info("Starting BlogPostEntity {}", entityId)
       EventSourcedBehavior[Command, Event, State](persistenceId, emptyState = BlankState, commandHandler, eventHandler)
+        .withRecovery(
+          Recovery.default
+        )
+        .withTagger { event =>
+          println(s"with tagger event [$event]")
+          Set.empty
+        }
+        .receiveSignal {
+          case (state, RecoveryCompleted) =>
+            println(s"recovery completed. state [$state]")
+            Behaviors.same
+        }
+        .snapshotWhen { (state, event, seqNum) =>
+          println(s"snapshot when state [$state], event [$event], sequenceNr [$seqNum]")
+          true
+        }
+    }
+
+  def applyWithEventAdapter(entityId: String, persistenceId: PersistenceId): Behavior[Command] =
+    Behaviors.setup { context =>
+      context.log.info("Starting BlogPostEntity {}", entityId)
+      EventSourcedBehavior[Command, Event, State](persistenceId, emptyState = BlankState, commandHandler, eventHandler)
+        .withRecovery(
+          Recovery.default
+        )
+        .withTagger { event =>
+          println(s"with tagger event [$event]")
+          Set.empty
+        }
+        .eventAdapter(new WrapperEventAdapter[Event])
         .receiveSignal {
           case (state, RecoveryCompleted) =>
             println(s"recovery completed. state [$state]")
