@@ -2,9 +2,9 @@ package com.github.yoshiyoshifujii.akka.sample.persistence.eventSourcing
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior }
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.github.yoshiyoshifujii.akka.sample.persistence.serialization.CborSerializable
 
 object BlogPostEntity {
@@ -121,5 +121,10 @@ object BlogPostEntity {
     Behaviors.setup { context =>
       context.log.info("Starting BlogPostEntity {}", entityId)
       EventSourcedBehavior[Command, Event, State](persistenceId, emptyState = BlankState, commandHandler, eventHandler)
+        .receiveSignal {
+          case (state, RecoveryCompleted) =>
+            println(s"recovery completed. state [$state]")
+            Behaviors.same
+        }
     }
 }

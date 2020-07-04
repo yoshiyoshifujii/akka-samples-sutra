@@ -78,6 +78,8 @@ class BlogPostEntitySpec
       result4.stateOfType[DraftState].content shouldBe newContent
       postContentProbe.expectMessageType[PostContent] shouldBe newContent
 
+      eventSourcedTestKit.restart()
+
       val doneProbe2 = testKit.createTestProbe[Done]
 
       val result5 = eventSourcedTestKit.runCommand(Publish(doneProbe2.ref))
@@ -91,6 +93,8 @@ class BlogPostEntitySpec
       result6.hasNoEvents should be(true)
       result6.stateOfType[PublishedState].content shouldBe newContent
       postContentProbe2.expectMessageType[PostContent] shouldBe newContent
+
+      eventSourcedTestKit.restart()
     }
 
   }
