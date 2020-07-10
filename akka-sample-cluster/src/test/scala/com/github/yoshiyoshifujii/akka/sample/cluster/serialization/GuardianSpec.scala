@@ -85,6 +85,48 @@ class GuardianSpec extends AnyFreeSpecLike {
 
     }
 
+    "Custom" in {
+
+      val testKit = ActorTestKit(ConfigFactory.parseString("""
+          |akka {
+          |  actor {
+          |    allow-java-serialization = off
+          |    warn-about-java-serializer-usage = off
+          |    serialization-identifiers {
+          |      "com.github.yoshiyoshifujii.akka.sample.cluster.serialization.GroupChatCustomSerializer" = 1001
+          |    }
+          |    serializers {
+          |      group-chat = "com.github.yoshiyoshifujii.akka.sample.cluster.serialization.GroupChatCustomSerializer"
+          |    }
+          |    serialization-bindings {
+          |      "com.github.yoshiyoshifujii.akka.sample.cluster.serialization.GroupChat" = group-chat
+          |    }
+          |  }
+          |}
+          |""".stripMargin))
+
+      try {
+        val probe = testKit.createTestProbe[AnyRef]
+
+        val guardian = testKit.spawn(Guardian())
+
+        val groupChat = GroupChat(
+          GroupChatId("A"),
+          GroupChatName(""),
+          Members(Vector.empty),
+          MessageMetas(Vector())
+        )
+        MemberRole.Admin.entryName
+
+        guardian ! Guardian.Something(groupChat, probe.ref)
+
+        assert(probe.expectMessageType[GroupChat].id.value === "A")
+      } finally {
+        testKit.shutdownTestKit()
+      }
+
+    }
+
   }
 
 }
