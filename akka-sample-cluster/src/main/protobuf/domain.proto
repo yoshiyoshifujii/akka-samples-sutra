@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package com.github.yoshiyoshifujii.akka.sample.cluster.serialization.proto;
+option optimize_for = SPEED;
+
+message Member {
+  string accountId = 1;
+  MemberRole role = 2;
+
+  enum MemberRole {
+    UNKNOWN_ROLE = 0;
+    ADMIN = 1;
+    MEMBER = 2;
+    READ_ONLY = 3;
+  }
+}
+
+message Members {
+  repeated Member values = 1;
+}
+
+message MessageMeta {
+  string messageId = 1;
+  string senderId = 2;
+  string newField = 3;
+}
+
+message MessageMetas {
+  repeated MessageMeta values = 1;
+}
+
+message GroupChat {
+  string id = 1;
+  string name = 2;
+  Members members = 3;
+  MessageMetas messageMetas = 4;
+}

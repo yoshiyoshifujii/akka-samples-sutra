@@ -10,9 +10,9 @@ import scala.collection.immutable
 
 trait JsonSerializer {}
 
-case class GroupChatId(value: String) extends JsonSerializer
+case class GroupChatId(value: String)   extends JsonSerializer
 case class GroupChatName(value: String) extends JsonSerializer
-sealed trait MemberRole extends EnumEntry with Snakecase with JsonSerializer
+sealed trait MemberRole                 extends EnumEntry with Snakecase with JsonSerializer
 
 object MemberRole extends Enum[MemberRole] {
   val values: immutable.IndexedSeq[MemberRole] = findValues
@@ -22,17 +22,19 @@ object MemberRole extends Enum[MemberRole] {
   case object ReadOnly extends MemberRole
 }
 
-case class Member(accountId: AccountId, role: MemberRole) extends JsonSerializer
-case class Members(values: Vector[Member])
-case class AccountId(value: String)
-case class MessageId(value: String)
-case class MessageMeta(messageId: MessageId, senderId: AccountId)
-case class MessageMetas(values: Vector[MessageMeta])
+case class Member(accountId: AccountId, role: MemberRole)         extends JsonSerializer
+case class Members(values: Vector[Member])                        extends JsonSerializer
+case class AccountId(value: String)                               extends JsonSerializer
+case class MessageId(value: String)                               extends JsonSerializer
+case class MessageMeta(messageId: MessageId, senderId: AccountId) extends JsonSerializer
+case class MessageMetas(values: Vector[MessageMeta])              extends JsonSerializer
+
 case class GroupChat(id: GroupChatId, groupChatName: GroupChatName, members: Members, messageMetas: MessageMetas)
+    extends JsonSerializer
 
 object Guardian {
   sealed trait Command
-  final case class Something(groupChat: GroupChat, replyTo: ActorRef[AnyRef]) extends Command
+  final case class Something(groupChat: AnyRef, replyTo: ActorRef[AnyRef]) extends Command
 
   def apply(): Behavior[Command] =
     Behaviors.setup { context =>
