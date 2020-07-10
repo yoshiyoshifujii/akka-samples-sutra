@@ -1,7 +1,9 @@
-val akkaVersion = "2.6.6"
+val akkaVersion = "2.6.7"
 
 lazy val root = (project in file("."))
   .enablePlugins(ProtocPlugin)
+  .enablePlugins(MultiJvmPlugin)
+  .configs(MultiJvm)
   .settings(
     name := "akka-sample-cluster",
     version := "0.1",
@@ -15,6 +17,7 @@ lazy val root = (project in file("."))
           ExclusionRule(organization = "org.slf4j")
         ),
         "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
+        "com.typesafe.akka" %% "akka-multi-node-testkit"  % akkaVersion % Test,
         "org.scalatest"     %% "scalatest"                % "3.2.0"     % Test,
         "com.beachape"      %% "enumeratum"               % "1.6.1"
       ),
