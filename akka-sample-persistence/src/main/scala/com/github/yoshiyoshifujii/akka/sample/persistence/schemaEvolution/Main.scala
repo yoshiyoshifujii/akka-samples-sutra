@@ -6,10 +6,10 @@ object Main {
 
   object SeatType {
 
-    case object Window  extends SeatType { override def code: String = "W" }
-    case object Aisle   extends SeatType { override def code: String = "A" }
-    case object Other   extends SeatType { override def code: String = "O" }
-    case object Unknown extends SeatType { override def code: String = ""  }
+    case object Window  extends SeatType { override val code: String = "W" }
+    case object Aisle   extends SeatType { override val code: String = "A" }
+    case object Other   extends SeatType { override val code: String = "O" }
+    case object Unknown extends SeatType { override val code: String = ""  }
 
     def fromString(s: String): SeatType =
       s match {
