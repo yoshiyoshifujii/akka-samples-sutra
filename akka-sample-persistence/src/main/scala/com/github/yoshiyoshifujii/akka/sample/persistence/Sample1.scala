@@ -29,13 +29,13 @@ object Sample1 {
   private val commandHandler: (State, Command) => Effect[Event, State] = {
     case (EmptyState, FirstCommand(v)) =>
       println(s"[FirstCommand] empty state. first command.")
-      Effect.persist(EventFirst(v))
+      Effect.persist(EventFirst(v)).thenRun(s => println(s"[ThenRun][FirstCommand] ${s}"))
     case (JustState(state), SecondCommand(v)) =>
       println(s"[SecondCommand] just state. [$state] second command. $state")
-      Effect.persist(EventSecond(v))
+      Effect.persist(EventSecond(v)).thenRun(s => println(s"[ThenRun][SecondCommand] ${s}"))
     case (JustState(state), SnapshotCompletedCommand) =>
       println(s"[SnapshotCompletedCommand] just state. [$state] snapshot completed command.")
-      Effect.persist(EventSnapshotCompleted)
+      Effect.persist(EventSnapshotCompleted).thenRun(s => println(s"[ThenRun][SnapshotCompletedCommand] ${s}"))
   }
 
   private val eventHandler: (State, Event) => State = {
