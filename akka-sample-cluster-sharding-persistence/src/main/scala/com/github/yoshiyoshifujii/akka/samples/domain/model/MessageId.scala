@@ -1,4 +1,4 @@
-package com.github.yoshiyoshifujii.akka.samples.domain
+package com.github.yoshiyoshifujii.akka.samples.domain.model
 
 import com.github.yoshiyoshifujii.akka.samples.infrastructure.ulid.ULID
 
