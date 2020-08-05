@@ -1,9 +1,7 @@
 package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
-import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplyEffect }
+import akka.persistence.typed.scaladsl.Effect
 import com.github.yoshiyoshifujii.akka.samples.domain.model.{ AccountId, Members, Thread, ThreadId, ThreadName }
 
 object ThreadPersistentAggregate {
@@ -59,33 +57,7 @@ object ThreadPersistentAggregate {
       members: Members
   ) extends Event
 
-  type CommandEffect = ReplyEffect[Event, State]
-
-  sealed trait State {
-
-    protected def applyCommandPartial: PartialFunction[Command, CommandEffect]
-    protected def applyEventPartial: PartialFunction[Event, State]
-
-    private lazy val applyCommandDefault: PartialFunction[Command, CommandEffect] =
-      PartialFunction.fromFunction(cmd =>
-        throw new IllegalStateException(s"unexpected command [$cmd] in state [EmptyState]")
-      )
-
-    def applyCommand(command: Command): CommandEffect =
-      (applyCommandPartial orElse applyCommandDefault)(command)
-
-    private lazy val applyEventDefault: PartialFunction[Event, State] =
-      PartialFunction.fromFunction(evt =>
-        throw new IllegalStateException(s"unexpected event [$evt] in state [EmptyState]")
-      )
-
-    def applyEvent(event: Event): State =
-      (applyEventPartial orElse applyEventDefault)(event)
-  }
-
-  object State {
-    val empty: State = EmptyState
-  }
+  sealed trait State extends StateBase[Command, Event, State]
 
   case object EmptyState extends State {
 
@@ -153,13 +125,6 @@ object ThreadPersistentAggregate {
     override protected def applyEventPartial: PartialFunction[Event, State]             = PartialFunction.empty
   }
 
-  def apply(threadId: ThreadId): Behavior[Command] =
-    Behaviors.setup { _ =>
-      EventSourcedBehavior[Command, Event, State](
-        persistenceId = PersistenceId.of(threadId.modelName, threadId.value.asString, "-"),
-        State.empty,
-        (state, command) => state.applyCommand(command),
-        (state, event) => state.applyEvent(event)
-      )
-    }
+  def apply(id: ThreadId): Behavior[Command] = AggregateGenerator[Command, Event, State](EmptyState)(id)
+
 }

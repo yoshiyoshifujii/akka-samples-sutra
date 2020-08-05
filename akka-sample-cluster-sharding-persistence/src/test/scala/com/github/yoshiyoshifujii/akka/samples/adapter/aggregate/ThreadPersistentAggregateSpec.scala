@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
-import akka.actor.testkit.typed.scaladsl.{ ScalaTestWithActorTestKit, TestProbe }
+import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import com.github.yoshiyoshifujii.akka.samples.domain.model.{
   AccountId,
@@ -32,9 +32,7 @@ class ThreadPersistentAggregateSpec
          |    }
          |  }
          |}
-         |""".stripMargin).withFallback(
-          EventSourcedBehaviorTestKit.config
-        )
+         |""".stripMargin).withFallback(EventSourcedBehaviorTestKit.config)
     )
     with AnyFreeSpecLike
     with Matchers {
