@@ -7,6 +7,8 @@ import com.github.yoshiyoshifujii.akka.samples.domain.model.{
   Member,
   MemberRole,
   Members,
+  MessageBody,
+  MessageId,
   Thread,
   ThreadId,
   ThreadName
@@ -29,6 +31,10 @@ class ThreadPersistentAggregateSpec
          |      "${classOf[ThreadPersistentAggregate.Command].getName}" = jackson-cbor
          |      "${classOf[ThreadPersistentAggregate.Event].getName}" = jackson-cbor
          |      "${classOf[ThreadPersistentAggregate.State].getName}" = jackson-cbor
+         |      "${classOf[MessagePersistentAggregate.Reply].getName}" = jackson-cbor
+         |      "${classOf[MessagePersistentAggregate.Command].getName}" = jackson-cbor
+         |      "${classOf[MessagePersistentAggregate.Event].getName}" = jackson-cbor
+         |      "${classOf[MessagePersistentAggregate.State].getName}" = jackson-cbor
          |    }
          |  }
          |}
@@ -47,7 +53,14 @@ class ThreadPersistentAggregateSpec
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread1    = createThread(threadId, esbTestKit)
       val thread2    = addMembers(esbTestKit, thread1)
-      val thread3    = deleteThread(esbTestKit, thread2)
+
+      val messageId = MessageId()
+      val senderId  = thread2.members.value.head.accountId
+      val body      = MessageBody("post message first")
+      val result    = esbTestKit.runCommand[ReplyPostMessage](CommandPostMessage(thread2.id, messageId, senderId, body, _))
+      result.replyOfType[ReplyPostMessageSucceeded].messageId should be(messageId)
+
+      deleteThread(esbTestKit, thread2)
     }
 
   }

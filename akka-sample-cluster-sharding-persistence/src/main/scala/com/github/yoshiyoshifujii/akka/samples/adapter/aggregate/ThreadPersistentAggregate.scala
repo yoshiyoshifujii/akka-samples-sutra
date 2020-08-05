@@ -1,8 +1,18 @@
 package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.typed.scaladsl.Effect
-import com.github.yoshiyoshifujii.akka.samples.domain.model.{ AccountId, Members, Thread, ThreadId, ThreadName }
+import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplyEffect }
+import com.github.yoshiyoshifujii.akka.samples.domain.model.{
+  AccountId,
+  Members,
+  MessageBody,
+  MessageId,
+  Thread,
+  ThreadId,
+  ThreadName
+}
 
 object ThreadPersistentAggregate {
 
@@ -19,6 +29,10 @@ object ThreadPersistentAggregate {
   sealed trait ReplyAddMembers                                  extends Reply
   final case class ReplyAddMembersSucceeded(threadId: ThreadId) extends ReplyAddMembers
   final case class ReplyAddMembersFailed(error: String)         extends ReplyAddMembers
+
+  sealed trait ReplyPostMessage                                                        extends Reply
+  final case class ReplyPostMessageSucceeded(threadId: ThreadId, messageId: MessageId) extends ReplyPostMessage
+  final case class ReplyPostMessageFailed(error: String)                               extends ReplyPostMessage
 
   sealed trait Command
 
@@ -39,6 +53,21 @@ object ThreadPersistentAggregate {
       members: Members,
       replyTo: ActorRef[ReplyAddMembers]
   ) extends Command
+
+  final case class CommandPostMessage(
+      threadId: ThreadId,
+      messageId: MessageId,
+      senderId: AccountId,
+      body: MessageBody,
+      replyTo: ActorRef[ReplyPostMessage]
+  ) extends Command
+
+  private sealed trait InternalCommand extends Command
+
+  private final case class InternalCommandPostMessage(
+      replyTo: ActorRef[ReplyPostMessage],
+      replyPostMessage: ReplyPostMessage
+  ) extends InternalCommand
 
   sealed trait Event
 
@@ -61,18 +90,6 @@ object ThreadPersistentAggregate {
 
   case object EmptyState extends State {
 
-    override protected def applyCommandPartial: PartialFunction[Command, CommandEffect] = {
-      case command @ CommandCreateThread(threadId, threadName, creatorId, replyTo) =>
-        if (Thread.canCreate(threadId, threadName, creatorId))
-          Effect
-            .persist(EventThreadCreated(threadId, threadName, creatorId))
-            .thenReply(replyTo) { _ =>
-              ReplyCreateThreadSucceeded(threadId)
-            }
-        else
-          Effect.reply(replyTo)(ReplyCreateThreadFailed(s"$command"))
-    }
-
     override protected def applyEventPartial: PartialFunction[Event, State] = {
       case EventThreadCreated(threadId, threadName, creatorId) =>
         JustState(
@@ -83,48 +100,115 @@ object ThreadPersistentAggregate {
           )
         )
     }
-
   }
 
   final case class JustState(thread: Thread) extends State {
 
-    override protected def applyCommandPartial: PartialFunction[Command, CommandEffect] = {
-      case command @ CommandDeleteThread(threadId, replyTo) if thread.id == threadId =>
-        if (thread.canDelete(threadId))
-          Effect
-            .persist(EventThreadDeleted(threadId))
-            .thenReply(replyTo) { _ =>
-              ReplyDeleteThreadSucceeded(threadId)
-            }
-        else
-          Effect.reply(replyTo)(ReplyDeleteThreadFailed(s"$command"))
-
-      case command @ CommandAddMembers(threadId, members, replyTo) if thread.id == threadId =>
-        if (thread.canAddMembers(threadId))
-          Effect
-            .persist(EventMembersAdded(threadId, members))
-            .thenReply(replyTo) { _ =>
-              ReplyAddMembersSucceeded(threadId)
-            }
-        else
-          Effect.reply(replyTo)(ReplyAddMembersFailed(s"$command"))
-
-    }
-
     override protected def applyEventPartial: PartialFunction[Event, State] = {
-      case EventThreadDeleted(threadId) if thread.id == threadId =>
-        DeletedState(thread)
-      case EventMembersAdded(threadId, members) if thread.id == threadId =>
-        JustState(thread.addMembers(members))
+      case EventThreadDeleted(threadId) if thread.id == threadId         => DeletedState(thread)
+      case EventMembersAdded(threadId, members) if thread.id == threadId => JustState(thread.addMembers(members))
     }
-
   }
 
   final case class DeletedState(thread: Thread) extends State {
-    override protected def applyCommandPartial: PartialFunction[Command, CommandEffect] = PartialFunction.empty
-    override protected def applyEventPartial: PartialFunction[Event, State]             = PartialFunction.empty
+    override protected def applyEventPartial: PartialFunction[Event, State] = PartialFunction.empty
   }
 
-  def apply(id: ThreadId): Behavior[Command] = AggregateGenerator[Command, Event, State](EmptyState)(id)
+  type CommandEffect = ReplyEffect[Event, State]
+
+  private def postMessage(thread: Thread, command: CommandPostMessage)(implicit
+      context: ActorContext[Command]
+  ): CommandEffect =
+    if (thread.canPostMessage(command.senderId)) {
+      val childActorName = command.messageId.asString
+      val actorRef = context.child(childActorName) match {
+        case None      => context.spawn(MessagePersistentAggregate(command.messageId), childActorName)
+        case Some(ref) => ref.asInstanceOf[ActorRef[MessagePersistentAggregate.Command]]
+      }
+      val replyRef: ActorRef[MessagePersistentAggregate.ReplyCreateMessage] =
+        context.messageAdapter[MessagePersistentAggregate.ReplyCreateMessage] {
+          case MessagePersistentAggregate.ReplyCreateMessageSucceeded(repMessageId) =>
+            InternalCommandPostMessage(
+              command.replyTo,
+              ReplyPostMessageSucceeded(command.threadId, repMessageId)
+            )
+          case MessagePersistentAggregate.ReplyCreateMessageFailed(error) =>
+            InternalCommandPostMessage(
+              command.replyTo,
+              ReplyPostMessageFailed(error)
+            )
+        }
+      actorRef ! MessagePersistentAggregate.CommandCreateMessage(
+        command.messageId,
+        command.threadId,
+        command.senderId,
+        command.body,
+        replyRef
+      )
+
+      Effect.noReply
+    } else {
+      Effect.reply(command.replyTo)(ReplyPostMessageFailed(s"$command"))
+    }
+
+  private def addMembers(thread: Thread, command: CommandAddMembers): CommandEffect =
+    if (thread.canAddMembers(command.members))
+      Effect
+        .persist(EventMembersAdded(command.threadId, command.members))
+        .thenReply(command.replyTo) { _ =>
+          ReplyAddMembersSucceeded(command.threadId)
+        }
+    else
+      Effect.reply(command.replyTo)(ReplyAddMembersFailed(s"$command"))
+
+  private def deleteThread(thread: Thread, command: CommandDeleteThread): CommandEffect =
+    if (thread.canDelete(command.threadId))
+      Effect
+        .persist(EventThreadDeleted(command.threadId))
+        .thenReply(command.replyTo) { _ =>
+          ReplyDeleteThreadSucceeded(command.threadId)
+        }
+    else
+      Effect.reply(command.replyTo)(ReplyDeleteThreadFailed(s"$command"))
+
+  private def createThread(command: CommandCreateThread): CommandEffect =
+    if (Thread.canCreate(command.threadId, command.threadName, command.creatorId))
+      Effect
+        .persist(EventThreadCreated(command.threadId, command.threadName, command.creatorId))
+        .thenReply(command.replyTo) { _ =>
+          ReplyCreateThreadSucceeded(command.threadId)
+        }
+    else
+      Effect.reply(command.replyTo)(ReplyCreateThreadFailed(s"$command"))
+
+  private def commandHandler(implicit context: ActorContext[Command]): (State, Command) => CommandEffect =
+    (state, command) =>
+      state match {
+        case EmptyState =>
+          command match {
+            case c: CommandCreateThread => createThread(c)
+            case _                      => Effect.unhandled.thenNoReply()
+          }
+        case JustState(thread) =>
+          command match {
+            case d: CommandDeleteThread if thread.id == d.threadId     => deleteThread(thread, d)
+            case a: CommandAddMembers if thread.id == a.threadId       => addMembers(thread, a)
+            case p: CommandPostMessage if thread.id == p.threadId      => postMessage(thread, p)
+            case InternalCommandPostMessage(replyTo, replyPostMessage) => Effect.reply(replyTo)(replyPostMessage)
+            case _                                                     => Effect.unhandled.thenNoReply()
+          }
+        case _: DeletedState =>
+          Effect.unhandled.thenNoReply()
+      }
+
+  def apply(id: ThreadId): Behavior[Command] =
+    Behaviors.setup { implicit context =>
+      EventSourcedBehavior[Command, Event, State](
+        persistenceId = PersistenceId.of(id.modelName, id.asString, "-"),
+        emptyState = EmptyState,
+        commandHandler,
+        (state, event) => state.applyEvent(event)
+      )
+    }
 
 }

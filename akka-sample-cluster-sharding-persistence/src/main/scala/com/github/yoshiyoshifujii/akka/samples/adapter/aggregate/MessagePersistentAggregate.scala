@@ -1,7 +1,9 @@
 package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
+import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.typed.scaladsl.Effect
+import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplyEffect }
 import com.github.yoshiyoshifujii.akka.samples.domain.model._
 
 object MessagePersistentAggregate {
@@ -71,18 +73,6 @@ object MessagePersistentAggregate {
 
   case object EmptyState extends State {
 
-    override protected def applyCommandPartial: PartialFunction[Command, CommandEffect] = {
-      case command @ CommandCreateMessage(messageId, threadId, senderId, body, replyTo) =>
-        if (Message.canCreate(messageId))
-          Effect
-            .persist(EventMessageCreated(messageId, threadId, senderId, body))
-            .thenReply(replyTo) { _ =>
-              ReplyCreateMessageSucceeded(messageId)
-            }
-        else
-          Effect.reply(replyTo)(ReplyCreateMessageFailed(s"$command"))
-    }
-
     override protected def applyEventPartial: PartialFunction[Event, State] = {
       case EventMessageCreated(messageId, threadId, senderId, body) =>
         JustState(Message(messageId, threadId, senderId, body))
@@ -91,28 +81,6 @@ object MessagePersistentAggregate {
 
   final case class JustState(message: Message) extends State {
 
-    override protected def applyCommandPartial: PartialFunction[Command, CommandEffect] = {
-      case command @ CommandEditMessage(messageId, threadId, senderId, body, replyTo) if message.id == messageId =>
-        if (message.canEdit(messageId, threadId, senderId))
-          Effect
-            .persist(EventMessageEdited(messageId, threadId, senderId, body))
-            .thenReply(replyTo) { _ =>
-              ReplyEditMessageSucceeded(messageId)
-            }
-        else
-          Effect.reply(replyTo)(ReplyEditMessageFailed(s"$command"))
-      case command @ CommandDeleteMessage(messageId, threadId, senderId, replyTo) if message.id == messageId =>
-        if (message.canDelete(messageId, threadId, senderId))
-          Effect
-            .persist(EventMessageDeleted(messageId, threadId, senderId))
-            .thenReply(replyTo) { _ =>
-              ReplyDeleteMessageSucceeded(messageId)
-            }
-        else
-          Effect.reply(replyTo)(ReplyDeleteMessageFailed(s"$command"))
-
-    }
-
     override protected def applyEventPartial: PartialFunction[Event, State] = {
       case EventMessageEdited(messageId, _, _, body) if message.id == messageId =>
         JustState(message.edit(body))
@@ -120,14 +88,70 @@ object MessagePersistentAggregate {
       case EventMessageDeleted(messageId, _, _) if message.id == messageId =>
         DeletedState(message)
     }
-
   }
 
   final case class DeletedState(message: Message) extends State {
-    override protected def applyCommandPartial: PartialFunction[Command, CommandEffect] = PartialFunction.empty
-    override protected def applyEventPartial: PartialFunction[Event, State]             = PartialFunction.empty
+    override protected def applyEventPartial: PartialFunction[Event, State] = PartialFunction.empty
   }
 
-  def apply(id: MessageId): Behavior[Command] = AggregateGenerator[Command, Event, State](EmptyState)(id)
+  type CommandEffect = ReplyEffect[Event, State]
+
+  private def deleteMessage(message: Message, command: CommandDeleteMessage): CommandEffect =
+    if (message.canDelete(command.messageId, command.threadId, command.senderId))
+      Effect
+        .persist(EventMessageDeleted(command.messageId, command.threadId, command.senderId))
+        .thenReply(command.replyTo) { _ =>
+          ReplyDeleteMessageSucceeded(command.messageId)
+        }
+    else
+      Effect.reply(command.replyTo)(ReplyDeleteMessageFailed(s"$command"))
+
+  private def editMessage(message: Message, command: CommandEditMessage): CommandEffect =
+    if (message.canEdit(command.messageId, command.threadId, command.senderId))
+      Effect
+        .persist(EventMessageEdited(command.messageId, command.threadId, command.senderId, command.body))
+        .thenReply(command.replyTo) { _ =>
+          ReplyEditMessageSucceeded(command.messageId)
+        }
+    else
+      Effect.reply(command.replyTo)(ReplyEditMessageFailed(s"$command"))
+
+  private def createMessage(command: CommandCreateMessage): CommandEffect =
+    if (Message.canCreate(command.messageId))
+      Effect
+        .persist(EventMessageCreated(command.messageId, command.threadId, command.senderId, command.body))
+        .thenReply(command.replyTo) { _ =>
+          ReplyCreateMessageSucceeded(command.messageId)
+        }
+    else
+      Effect.reply(command.replyTo)(ReplyCreateMessageFailed(s"$command"))
+
+  private def commandHandler(implicit context: ActorContext[Command]): (State, Command) => CommandEffect =
+    (state, command) =>
+      state match {
+        case EmptyState =>
+          command match {
+            case c: CommandCreateMessage => createMessage(c)
+            case _                       => Effect.unhandled.thenNoReply()
+          }
+        case JustState(message) =>
+          command match {
+            case e: CommandEditMessage if message.id == e.messageId   => editMessage(message, e)
+            case d: CommandDeleteMessage if message.id == d.messageId => deleteMessage(message, d)
+            case _                                                    => Effect.unhandled.thenNoReply()
+          }
+        case _: DeletedState =>
+          Effect.unhandled.thenNoReply()
+      }
+
+  def apply(id: MessageId): Behavior[Command] =
+    Behaviors.setup { implicit context =>
+      EventSourcedBehavior[Command, Event, State](
+        persistenceId = PersistenceId.of(id.modelName, id.asString, "-"),
+        emptyState = EmptyState,
+        commandHandler,
+        (state, event) => state.applyEvent(event)
+      )
+    }
 
 }
