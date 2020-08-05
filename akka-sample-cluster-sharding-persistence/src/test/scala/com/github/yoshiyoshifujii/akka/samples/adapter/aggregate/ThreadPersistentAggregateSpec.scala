@@ -49,26 +49,24 @@ class ThreadPersistentAggregateSpec
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread1    = createThread(threadId, esbTestKit)
       val thread2    = addMembers(esbTestKit, thread1)
-      deleteThread(esbTestKit, thread2)
+      val thread3    = deleteThread(esbTestKit, thread2)
     }
 
   }
 
   private def deleteThread(esbTestKit: EventSourcedBehaviorTestKit[Command, Event, State], thread: Thread) = {
-    val probe  = TestProbe[ReplyDeleteThread]
-    val result = esbTestKit.runCommand(CommandDeleteThread(thread.id, probe.ref))
+    val result = esbTestKit.runCommand[ReplyDeleteThread](CommandDeleteThread(thread.id, _))
     result.eventOfType[EventThreadDeleted].threadId should be(thread.id)
     val thread2 = result.stateOfType[DeletedState].thread
     thread2 should be(thread)
-    probe.expectMessageType[ReplyDeleteThreadSucceeded].threadId should be(thread.id)
+    result.replyOfType[ReplyDeleteThreadSucceeded].threadId should be(thread.id)
     thread2
   }
 
   private def addMembers(esbTestKit: EventSourcedBehaviorTestKit[Command, Event, State], thread: Thread): Thread = {
     val member  = Member(AccountId(), MemberRole.Read)
     val members = Members(member)
-    val probe   = TestProbe[ReplyAddMembers]
-    val result  = esbTestKit.runCommand(CommandAddMembers(thread.id, members, probe.ref))
+    val result  = esbTestKit.runCommand[ReplyAddMembers](CommandAddMembers(thread.id, members, _))
     val event   = result.eventOfType[EventMembersAdded]
     event.threadId should be(thread.id)
     event.members should be(members)
@@ -76,7 +74,7 @@ class ThreadPersistentAggregateSpec
     thread2.id should be(thread.id)
     thread2.name should be(thread.name)
     thread2.members.value.tail should contain(member)
-    probe.expectMessageType[ReplyAddMembersSucceeded].threadId should be(thread.id)
+    result.replyOfType[ReplyAddMembersSucceeded].threadId should be(thread.id)
     thread2
   }
 
@@ -87,8 +85,7 @@ class ThreadPersistentAggregateSpec
     val threadName = ThreadName("thread-name-1")
     val accountId  = AccountId()
 
-    val probe  = TestProbe[ReplyCreateThread]()
-    val result = esbTestKit.runCommand(CommandCreateThread(threadId, threadName, accountId, probe.ref))
+    val result = esbTestKit.runCommand[ReplyCreateThread](CommandCreateThread(threadId, threadName, accountId, _))
     val event  = result.eventOfType[EventThreadCreated]
     event.threadId should be(threadId)
     event.threadName should be(threadName)
@@ -98,7 +95,7 @@ class ThreadPersistentAggregateSpec
     thread.name should be(threadName)
     thread.members.value.head.accountId should be(accountId)
     thread.members.value.head.role should be(MemberRole.Admin)
-    probe.expectMessageType[ReplyCreateThreadSucceeded].threadId should be(threadId)
+    result.replyOfType[ReplyCreateThreadSucceeded].threadId should be(threadId)
 
     thread
   }
