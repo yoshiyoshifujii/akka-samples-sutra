@@ -2,8 +2,7 @@ package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
 import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior, ReplyEffect }
+import akka.persistence.typed.scaladsl.{ Effect, ReplyEffect }
 import com.github.yoshiyoshifujii.akka.samples.domain.model._
 
 object MessagePersistentAggregate {
@@ -13,14 +12,20 @@ object MessagePersistentAggregate {
   sealed trait ReplyCreateMessage                                    extends Reply
   final case class ReplyCreateMessageSucceeded(messageId: MessageId) extends ReplyCreateMessage
   final case class ReplyCreateMessageFailed(error: String)           extends ReplyCreateMessage
+  case object ReplyCreateMessageAlreadyExists                        extends ReplyCreateMessage
+  case object ReplyCreateMessageAlreadyDeleted                       extends ReplyCreateMessage
 
   sealed trait ReplyEditMessage                                    extends Reply
   final case class ReplyEditMessageSucceeded(messageId: MessageId) extends ReplyEditMessage
   final case class ReplyEditMessageFailed(error: String)           extends ReplyEditMessage
+  case object ReplyEditMessageNotFound                             extends ReplyEditMessage
+  case object ReplyEditMessageAlreadyDeleted                       extends ReplyEditMessage
 
   sealed trait ReplyDeleteMessage                                    extends Reply
   final case class ReplyDeleteMessageSucceeded(messageId: MessageId) extends ReplyDeleteMessage
   final case class ReplyDeleteMessageFailed(error: String)           extends ReplyDeleteMessage
+  case object ReplyDeleteMessageNotFound                             extends ReplyDeleteMessage
+  case object ReplyDeleteMessageAlreadyDeleted                       extends ReplyDeleteMessage
 
   sealed trait Command
 
@@ -132,26 +137,29 @@ object MessagePersistentAggregate {
         case EmptyState =>
           command match {
             case c: CommandCreateMessage => createMessage(c)
+            case e: CommandEditMessage   => Effect.reply(e.replyTo)(ReplyEditMessageNotFound)
+            case d: CommandDeleteMessage => Effect.reply(d.replyTo)(ReplyDeleteMessageNotFound)
             case _                       => Effect.unhandled.thenNoReply()
           }
         case JustState(message) =>
           command match {
+            case c: CommandCreateMessage                              => Effect.reply(c.replyTo)(ReplyCreateMessageAlreadyExists)
             case e: CommandEditMessage if message.id == e.messageId   => editMessage(message, e)
             case d: CommandDeleteMessage if message.id == d.messageId => deleteMessage(message, d)
             case _                                                    => Effect.unhandled.thenNoReply()
           }
         case _: DeletedState =>
-          Effect.unhandled.thenNoReply()
+          command match {
+            case c: CommandCreateMessage => Effect.reply(c.replyTo)(ReplyCreateMessageAlreadyDeleted)
+            case e: CommandEditMessage   => Effect.reply(e.replyTo)(ReplyEditMessageAlreadyDeleted)
+            case d: CommandDeleteMessage => Effect.reply(d.replyTo)(ReplyDeleteMessageAlreadyDeleted)
+            case _                       => Effect.unhandled.thenNoReply()
+          }
       }
 
   def apply(id: MessageId): Behavior[Command] =
     Behaviors.setup { implicit context =>
-      EventSourcedBehavior[Command, Event, State](
-        persistenceId = PersistenceId.of(id.modelName, id.asString, "-"),
-        emptyState = EmptyState,
-        commandHandler,
-        (state, event) => state.applyEvent(event)
-      )
+      AggregateActorGenerator[Command, Event, State](EmptyState)(commandHandler)(id)
     }
 
 }

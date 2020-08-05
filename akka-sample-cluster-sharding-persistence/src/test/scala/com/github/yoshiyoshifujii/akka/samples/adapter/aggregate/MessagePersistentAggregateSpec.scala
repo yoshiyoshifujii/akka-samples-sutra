@@ -39,7 +39,7 @@ class MessagePersistentAggregateSpec
       val esbTestKit        = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val message1: Message = createMessage(messageId, esbTestKit)
       val message2: Message = editMessage(esbTestKit, message1)
-      val message3: Message = deleteMessage(esbTestKit, message2)
+      deleteMessage(esbTestKit, message2)
     }
 
   }

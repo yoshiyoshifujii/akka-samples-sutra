@@ -53,16 +53,127 @@ class ThreadPersistentAggregateSpec
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread1    = createThread(threadId, esbTestKit)
       val thread2    = addMembers(esbTestKit, thread1)
-
-      val messageId = MessageId()
-      val senderId  = thread2.members.value.head.accountId
-      val body      = MessageBody("post message first")
-      val result    = esbTestKit.runCommand[ReplyPostMessage](CommandPostMessage(thread2.id, messageId, senderId, body, _))
-      result.replyOfType[ReplyPostMessageSucceeded].messageId should be(messageId)
-
       deleteThread(esbTestKit, thread2)
     }
 
+    "Threadを作成しメッセージを送信・編集・削除する" in {
+      val threadId   = ThreadId()
+      val behavior   = ThreadPersistentAggregate(threadId)
+      val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
+      val thread     = createThread(threadId, esbTestKit)
+
+      val messageId = MessageId()
+      postMessage(esbTestKit, thread, messageId)
+      editMessage(esbTestKit, thread, messageId)
+      deleteMessage(esbTestKit, thread, messageId)
+    }
+
+    "Threadを作成し同じメッセージIDを2回送信するとエラーになる" in {
+      val threadId   = ThreadId()
+      val behavior   = ThreadPersistentAggregate(threadId)
+      val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
+      val thread     = createThread(threadId, esbTestKit)
+
+      val messageId = MessageId()
+      postMessage(esbTestKit, thread, messageId)
+
+      val body     = MessageBody("post message first")
+      val senderId = thread.members.value.head.accountId
+      val result   = esbTestKit.runCommand[ReplyPostMessage](CommandPostMessage(thread.id, messageId, senderId, body, _))
+      result.replyOfType[ReplyPostMessageAlreadyExists.type]
+    }
+
+    "Threadを作成し存在しないメッセージを編集するとエラーになる" in {
+      val threadId   = ThreadId()
+      val behavior   = ThreadPersistentAggregate(threadId)
+      val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
+      val thread     = createThread(threadId, esbTestKit)
+
+      val messageId = MessageId()
+      val senderId  = thread.members.value.head.accountId
+      val body      = MessageBody("post message second edition")
+      val result    = esbTestKit.runCommand[ReplyEditMessage](CommandEditMessage(thread.id, messageId, senderId, body, _))
+      result.replyOfType[ReplyEditMessageNotFound.type]
+    }
+
+    "Threadを作成し存在しないメッセージを削除するとエラーになる" in {
+      val threadId   = ThreadId()
+      val behavior   = ThreadPersistentAggregate(threadId)
+      val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
+      val thread     = createThread(threadId, esbTestKit)
+
+      val messageId = MessageId()
+      val senderId  = thread.members.value.head.accountId
+      val result    = esbTestKit.runCommand[ReplyDeleteMessage](CommandDeleteMessage(thread.id, messageId, senderId, _))
+      result.replyOfType[ReplyDeleteMessageNotFound.type]
+
+    }
+
+    "Threadを削除したメッセージに作成・編集・削除のコマンドを投げるとエラーになる" in {
+      val threadId   = ThreadId()
+      val behavior   = ThreadPersistentAggregate(threadId)
+      val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
+      val thread     = createThread(threadId, esbTestKit)
+
+      val messageId = MessageId()
+      postMessage(esbTestKit, thread, messageId)
+      deleteMessage(esbTestKit, thread, messageId)
+
+      val senderId = thread.members.value.head.accountId
+      val body     = MessageBody("post message second edition")
+
+      esbTestKit
+        .runCommand[ReplyPostMessage](CommandPostMessage(thread.id, messageId, senderId, body, _)).replyOfType[
+          ReplyPostMessageAlreadyDeleted.type
+        ]
+      esbTestKit
+        .runCommand[ReplyEditMessage](CommandEditMessage(thread.id, messageId, senderId, body, _)).replyOfType[
+          ReplyEditMessageAlreadyDeleted.type
+        ]
+      esbTestKit
+        .runCommand[ReplyDeleteMessage](CommandDeleteMessage(thread.id, messageId, senderId, _)).replyOfType[
+          ReplyDeleteMessageAlreadyDeleted.type
+        ]
+    }
+
+  }
+
+  private def deleteMessage(
+      esbTestKit: EventSourcedBehaviorTestKit[Command, Event, State],
+      thread: Thread,
+      messageId: MessageId
+  ): Unit = {
+    val senderId = thread.members.value.head.accountId
+    val result   = esbTestKit.runCommand[ReplyDeleteMessage](CommandDeleteMessage(thread.id, messageId, senderId, _))
+    result.replyOfType[ReplyDeleteMessageSucceeded].messageId should be(messageId)
+    result.hasNoEvents should be(true)
+    result.stateOfType[JustState].thread should be(thread)
+  }
+
+  private def editMessage(
+      esbTestKit: EventSourcedBehaviorTestKit[Command, Event, State],
+      thread: Thread,
+      messageId: MessageId
+  ): Unit = {
+    val senderId = thread.members.value.head.accountId
+    val body     = MessageBody("post message second edition")
+    val result   = esbTestKit.runCommand[ReplyEditMessage](CommandEditMessage(thread.id, messageId, senderId, body, _))
+    result.replyOfType[ReplyEditMessageSucceeded].messageId should be(messageId)
+    result.hasNoEvents should be(true)
+    result.stateOfType[JustState].thread should be(thread)
+  }
+
+  private def postMessage(
+      esbTestKit: EventSourcedBehaviorTestKit[Command, Event, State],
+      thread: Thread,
+      messageId: MessageId
+  ): Unit = {
+    val senderId = thread.members.value.head.accountId
+    val body     = MessageBody("post message first")
+    val result   = esbTestKit.runCommand[ReplyPostMessage](CommandPostMessage(thread.id, messageId, senderId, body, _))
+    result.replyOfType[ReplyPostMessageSucceeded].messageId should be(messageId)
+    result.hasNoEvents should be(true)
+    result.stateOfType[JustState].thread should be(thread)
   }
 
   private def deleteThread(esbTestKit: EventSourcedBehaviorTestKit[Command, Event, State], thread: Thread) = {
