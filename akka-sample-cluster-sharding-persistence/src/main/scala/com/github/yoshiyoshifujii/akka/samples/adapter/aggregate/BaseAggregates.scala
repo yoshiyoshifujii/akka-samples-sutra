@@ -11,8 +11,8 @@ trait BaseCommand[Id <: DomainId] {
 
 trait UnsupportedId[Id <: DomainId] {
   self: BaseCommand[Id] =>
-  override def id: Id             = throw new UnsupportedOperationException
-  override def idAsString: String = throw new UnsupportedOperationException
+  override def id: Id             = throw new UnsupportedOperationException(s"${this.getClass.getName}")
+  override def idAsString: String = throw new UnsupportedOperationException(s"${this.getClass.getName}")
 }
 
 trait BaseIdle[Id <: DomainId] extends BaseCommand[Id] with UnsupportedId[Id]
@@ -22,7 +22,7 @@ trait BaseAggregates[Id <: DomainId, Command <: BaseCommand[Id]] {
 
   def name: String
 
-  def behavior(nameF: Id => String)(childBehaviorF: Id => Behavior[Command]): Behavior[Command] =
+  def apply(nameF: Id => String)(childBehaviorF: Id => Behavior[Command]): Behavior[Command] =
     Behaviors.setup { ctx =>
       def getOrCreateRef(id: Id): ActorRef[Command] = {
         ctx.child(nameF(id)) match {

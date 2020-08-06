@@ -1,6 +1,8 @@
 val akkaVersion = "2.6.8"
 
 lazy val root = (project in file("."))
+  .enablePlugins(MultiJvmPlugin)
+  .configs(MultiJvm)
   .settings(
     name := "akka-sample-cluster-sharding-persistence",
     organization := "com.github.yoshiyoshifujii.akka.samples",

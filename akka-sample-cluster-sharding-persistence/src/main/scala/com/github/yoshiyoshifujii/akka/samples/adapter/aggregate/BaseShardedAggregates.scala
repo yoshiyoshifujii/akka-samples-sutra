@@ -16,6 +16,7 @@ abstract class BaseShardedAggregates[
     Stop <: BaseStop[Id] with Command: ClassTag
 ] {
 
+  def name: String
   protected def typeKeyName: String
   protected def actorName: String
   protected def idle: Idle
@@ -50,12 +51,7 @@ abstract class BaseShardedAggregates[
       receiveTimeout: FiniteDuration
   ): ActorRef[ShardingEnvelope[Command]] =
     clusterSharding.init(
-      Entity(TypeKey)(
-        createBehavior = entityBehavior(
-          childBehavior,
-          receiveTimeout
-        )
-      ).withStopMessage(stop)
+      Entity(TypeKey)(entityBehavior(childBehavior, receiveTimeout)).withStopMessage(stop)
     )
 
   def ofProxy(clusterSharding: ClusterSharding): Behavior[Command] =
