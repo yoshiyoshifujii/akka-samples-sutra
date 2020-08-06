@@ -74,7 +74,7 @@ object MessagePersistentAggregate {
       senderId: AccountId
   ) extends Event
 
-  sealed trait State extends StateBase[Command, Event, State]
+  sealed trait State extends BaseState[Command, Event, State]
 
   case object EmptyState extends State {
 

@@ -15,60 +15,67 @@ import com.github.yoshiyoshifujii.akka.samples.domain.model.{
 
 object ThreadPersistentAggregate {
 
+  type AggregateRootId = ThreadId
+
   sealed trait Reply
 
-  sealed trait ReplyCreateThread                                  extends Reply
-  final case class ReplyCreateThreadSucceeded(threadId: ThreadId) extends ReplyCreateThread
-  final case class ReplyCreateThreadFailed(error: String)         extends ReplyCreateThread
+  sealed trait ReplyCreateThread                                         extends Reply
+  final case class ReplyCreateThreadSucceeded(threadId: AggregateRootId) extends ReplyCreateThread
+  final case class ReplyCreateThreadFailed(error: String)                extends ReplyCreateThread
 
-  sealed trait ReplyDeleteThread                                  extends Reply
-  final case class ReplyDeleteThreadSucceeded(threadId: ThreadId) extends ReplyDeleteThread
-  final case class ReplyDeleteThreadFailed(error: String)         extends ReplyDeleteThread
+  sealed trait ReplyDeleteThread                                         extends Reply
+  final case class ReplyDeleteThreadSucceeded(threadId: AggregateRootId) extends ReplyDeleteThread
+  final case class ReplyDeleteThreadFailed(error: String)                extends ReplyDeleteThread
 
-  sealed trait ReplyAddMembers                                  extends Reply
-  final case class ReplyAddMembersSucceeded(threadId: ThreadId) extends ReplyAddMembers
-  final case class ReplyAddMembersFailed(error: String)         extends ReplyAddMembers
+  sealed trait ReplyAddMembers                                         extends Reply
+  final case class ReplyAddMembersSucceeded(threadId: AggregateRootId) extends ReplyAddMembers
+  final case class ReplyAddMembersFailed(error: String)                extends ReplyAddMembers
 
-  sealed trait ReplyPostMessage                                                        extends Reply
-  final case class ReplyPostMessageSucceeded(threadId: ThreadId, messageId: MessageId) extends ReplyPostMessage
-  final case class ReplyPostMessageFailed(error: String)                               extends ReplyPostMessage
-  case object ReplyPostMessageAlreadyExists                                            extends ReplyPostMessage
-  case object ReplyPostMessageAlreadyDeleted                                           extends ReplyPostMessage
+  sealed trait ReplyPostMessage                                                               extends Reply
+  final case class ReplyPostMessageSucceeded(threadId: AggregateRootId, messageId: MessageId) extends ReplyPostMessage
+  final case class ReplyPostMessageFailed(error: String)                                      extends ReplyPostMessage
+  case object ReplyPostMessageAlreadyExists                                                   extends ReplyPostMessage
+  case object ReplyPostMessageAlreadyDeleted                                                  extends ReplyPostMessage
 
-  sealed trait ReplyEditMessage                                                        extends Reply
-  final case class ReplyEditMessageSucceeded(threadId: ThreadId, messageId: MessageId) extends ReplyEditMessage
-  final case class ReplyEditMessageFailed(error: String)                               extends ReplyEditMessage
-  case object ReplyEditMessageNotFound                                                 extends ReplyEditMessage
-  case object ReplyEditMessageAlreadyDeleted                                           extends ReplyEditMessage
+  sealed trait ReplyEditMessage                                                               extends Reply
+  final case class ReplyEditMessageSucceeded(threadId: AggregateRootId, messageId: MessageId) extends ReplyEditMessage
+  final case class ReplyEditMessageFailed(error: String)                                      extends ReplyEditMessage
+  case object ReplyEditMessageNotFound                                                        extends ReplyEditMessage
+  case object ReplyEditMessageAlreadyDeleted                                                  extends ReplyEditMessage
 
-  sealed trait ReplyDeleteMessage                                                        extends Reply
-  final case class ReplyDeleteMessageSucceeded(threadId: ThreadId, messageId: MessageId) extends ReplyDeleteMessage
-  final case class ReplyDeleteMessageFailed(error: String)                               extends ReplyDeleteMessage
-  case object ReplyDeleteMessageNotFound                                                 extends ReplyDeleteMessage
-  case object ReplyDeleteMessageAlreadyDeleted                                           extends ReplyDeleteMessage
+  sealed trait ReplyDeleteMessage extends Reply
 
-  sealed trait Command
+  final case class ReplyDeleteMessageSucceeded(threadId: AggregateRootId, messageId: MessageId)
+      extends ReplyDeleteMessage
+  final case class ReplyDeleteMessageFailed(error: String) extends ReplyDeleteMessage
+  case object ReplyDeleteMessageNotFound                   extends ReplyDeleteMessage
+  case object ReplyDeleteMessageAlreadyDeleted             extends ReplyDeleteMessage
+
+  sealed trait Command extends BaseCommand[AggregateRootId]
+
+  case object Idle extends BaseIdle[AggregateRootId] with Command
+  case object Stop extends BaseStop[AggregateRootId] with Command
 
   final case class CommandCreateThread(
-      threadId: ThreadId,
+      id: AggregateRootId,
       threadName: ThreadName,
       creatorId: AccountId,
       replyTo: ActorRef[ReplyCreateThread]
   ) extends Command
 
   final case class CommandDeleteThread(
-      threadId: ThreadId,
+      id: AggregateRootId,
       replyTo: ActorRef[ReplyDeleteThread]
   ) extends Command
 
   final case class CommandAddMembers(
-      threadId: ThreadId,
+      id: AggregateRootId,
       members: Members,
       replyTo: ActorRef[ReplyAddMembers]
   ) extends Command
 
   final case class CommandPostMessage(
-      threadId: ThreadId,
+      id: AggregateRootId,
       messageId: MessageId,
       senderId: AccountId,
       body: MessageBody,
@@ -76,7 +83,7 @@ object ThreadPersistentAggregate {
   ) extends Command
 
   final case class CommandEditMessage(
-      threadId: ThreadId,
+      id: AggregateRootId,
       messageId: MessageId,
       senderId: AccountId,
       body: MessageBody,
@@ -84,13 +91,13 @@ object ThreadPersistentAggregate {
   ) extends Command
 
   final case class CommandDeleteMessage(
-      threadId: ThreadId,
+      id: AggregateRootId,
       messageId: MessageId,
       senderId: AccountId,
       replyTo: ActorRef[ReplyDeleteMessage]
   ) extends Command
 
-  private sealed trait InternalCommand extends Command
+  private sealed trait InternalCommand extends Command with UnsupportedId[AggregateRootId]
 
   private final case class InternalCommandPostMessage(
       replyTo: ActorRef[ReplyPostMessage],
@@ -110,21 +117,21 @@ object ThreadPersistentAggregate {
   sealed trait Event
 
   final case class EventThreadCreated(
-      threadId: ThreadId,
+      threadId: AggregateRootId,
       threadName: ThreadName,
       creatorId: AccountId
   ) extends Event
 
   final case class EventThreadDeleted(
-      threadId: ThreadId
+      threadId: AggregateRootId
   ) extends Event
 
   final case class EventMembersAdded(
-      threadId: ThreadId,
+      threadId: AggregateRootId,
       members: Members
   ) extends Event
 
-  sealed trait State extends StateBase[Command, Event, State]
+  sealed trait State extends BaseState[Command, Event, State]
 
   case object EmptyState extends State {
 
@@ -155,21 +162,21 @@ object ThreadPersistentAggregate {
   type CommandEffect = ReplyEffect[Event, State]
 
   private def createThread(command: CommandCreateThread): CommandEffect =
-    if (Thread.canCreate(command.threadId, command.threadName, command.creatorId))
+    if (Thread.canCreate(command.id, command.threadName, command.creatorId))
       Effect
-        .persist(EventThreadCreated(command.threadId, command.threadName, command.creatorId))
+        .persist(EventThreadCreated(command.id, command.threadName, command.creatorId))
         .thenReply(command.replyTo) { _ =>
-          ReplyCreateThreadSucceeded(command.threadId)
+          ReplyCreateThreadSucceeded(command.id)
         }
     else
       Effect.reply(command.replyTo)(ReplyCreateThreadFailed(s"$command"))
 
   private def deleteThread(thread: Thread, command: CommandDeleteThread): CommandEffect =
-    if (thread.canDelete(command.threadId))
+    if (thread.canDelete(command.id))
       Effect
-        .persist(EventThreadDeleted(command.threadId))
+        .persist(EventThreadDeleted(command.id))
         .thenReply(command.replyTo) { _ =>
-          ReplyDeleteThreadSucceeded(command.threadId)
+          ReplyDeleteThreadSucceeded(command.id)
         }
     else
       Effect.reply(command.replyTo)(ReplyDeleteThreadFailed(s"$command"))
@@ -177,9 +184,9 @@ object ThreadPersistentAggregate {
   private def addMembers(thread: Thread, command: CommandAddMembers): CommandEffect =
     if (thread.canAddMembers(command.members))
       Effect
-        .persist(EventMembersAdded(command.threadId, command.members))
+        .persist(EventMembersAdded(command.id, command.members))
         .thenReply(command.replyTo) { _ =>
-          ReplyAddMembersSucceeded(command.threadId)
+          ReplyAddMembersSucceeded(command.id)
         }
     else
       Effect.reply(command.replyTo)(ReplyAddMembersFailed(s"$command"))
@@ -205,7 +212,7 @@ object ThreadPersistentAggregate {
       case MessagePersistentAggregate.ReplyCreateMessageSucceeded(repMessageId) =>
         InternalCommandPostMessage(
           command.replyTo,
-          ReplyPostMessageSucceeded(command.threadId, repMessageId)
+          ReplyPostMessageSucceeded(command.id, repMessageId)
         )
       case MessagePersistentAggregate.ReplyCreateMessageFailed(error) =>
         InternalCommandPostMessage(
@@ -231,7 +238,7 @@ object ThreadPersistentAggregate {
       case MessagePersistentAggregate.ReplyEditMessageSucceeded(repMessageId) =>
         InternalCommandEditMessage(
           command.replyTo,
-          ReplyEditMessageSucceeded(command.threadId, repMessageId)
+          ReplyEditMessageSucceeded(command.id, repMessageId)
         )
       case MessagePersistentAggregate.ReplyEditMessageFailed(error) =>
         InternalCommandEditMessage(
@@ -257,7 +264,7 @@ object ThreadPersistentAggregate {
       case MessagePersistentAggregate.ReplyDeleteMessageSucceeded(repMessageId) =>
         InternalCommandDeleteMessage(
           command.replyTo,
-          ReplyDeleteMessageSucceeded(command.threadId, repMessageId)
+          ReplyDeleteMessageSucceeded(command.id, repMessageId)
         )
       case MessagePersistentAggregate.ReplyDeleteMessageFailed(error) =>
         InternalCommandDeleteMessage(
@@ -287,7 +294,7 @@ object ThreadPersistentAggregate {
     if (thread.canPostMessage(command.senderId)) {
       actorRef ! MessagePersistentAggregate.CommandCreateMessage(
         command.messageId,
-        command.threadId,
+        command.id,
         command.senderId,
         command.body,
         replyRef
@@ -309,7 +316,7 @@ object ThreadPersistentAggregate {
     if (thread.canEditMessage(command.senderId)) {
       actorRef ! MessagePersistentAggregate.CommandEditMessage(
         command.messageId,
-        command.threadId,
+        command.id,
         command.senderId,
         command.body,
         replyRef
@@ -331,7 +338,7 @@ object ThreadPersistentAggregate {
     if (thread.canDeleteMessage(command.senderId)) {
       actorRef ! MessagePersistentAggregate.CommandDeleteMessage(
         command.messageId,
-        command.threadId,
+        command.id,
         command.senderId,
         replyRef
       )
@@ -342,7 +349,7 @@ object ThreadPersistentAggregate {
     }
 
   def apply(
-      id: ThreadId,
+      id: AggregateRootId,
       childActorNameF: MessageId => String,
       childBehaviorF: MessageId => Behavior[MessagePersistentAggregate.Command]
   ): Behavior[Command] =
@@ -356,23 +363,23 @@ object ThreadPersistentAggregate {
             }
           case JustState(thread) =>
             command match {
-              case d: CommandDeleteThread if thread.id == d.threadId => deleteThread(thread, d)
-              case a: CommandAddMembers if thread.id == a.threadId   => addMembers(thread, a)
-              case p: CommandPostMessage if thread.id == p.threadId =>
+              case d: CommandDeleteThread if thread.id == d.id => deleteThread(thread, d)
+              case a: CommandAddMembers if thread.id == a.id   => addMembers(thread, a)
+              case p: CommandPostMessage if thread.id == p.id =>
                 postMessage(
                   thread,
                   p,
                   getOrCreateChildActor(p.messageId, childActorNameF, childBehaviorF),
                   generateReplyCreateMessageRef(p)
                 )
-              case e: CommandEditMessage if thread.id == e.threadId =>
+              case e: CommandEditMessage if thread.id == e.id =>
                 editMessage(
                   thread,
                   e,
                   getOrCreateChildActor(e.messageId, childActorNameF, childBehaviorF),
                   generateReplyEditMessageRef(e)
                 )
-              case d: CommandDeleteMessage if thread.id == d.threadId =>
+              case d: CommandDeleteMessage if thread.id == d.id =>
                 deleteMessage(
                   thread,
                   d,
@@ -383,7 +390,6 @@ object ThreadPersistentAggregate {
               case InternalCommandEditMessage(replyTo, replyEditMessage) => Effect.reply(replyTo)(replyEditMessage)
               case InternalCommandDeleteMessage(replyTo, replyDeleteMessage) =>
                 Effect.reply(replyTo)(replyDeleteMessage)
-              case _ => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
             }
           case _: DeletedState => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
         }
