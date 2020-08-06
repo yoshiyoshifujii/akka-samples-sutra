@@ -185,42 +185,106 @@ object ThreadPersistentAggregate {
       Effect.reply(command.replyTo)(ReplyAddMembersFailed(s"$command"))
 
   private def getOrCreateChildActor(
-      messageId: MessageId
+      messageId: MessageId,
+      childActorNameF: MessageId => String,
+      childBehaviorF: MessageId => Behavior[MessagePersistentAggregate.Command]
   )(implicit context: ActorContext[Command]): ActorRef[MessagePersistentAggregate.Command] = {
-    val childActorName = messageId.asString
+    val childActorName = childActorNameF(messageId)
     context.child(childActorName) match {
-      case None      => context.spawn(MessagePersistentAggregate(messageId), childActorName)
+      case None =>
+        context.log.debug(s"Child $messageId => Behavior[[MessagePersistentAggregate.Command]] spawn.")
+        context.spawn(childBehaviorF(messageId), childActorName)
       case Some(ref) => ref.asInstanceOf[ActorRef[MessagePersistentAggregate.Command]]
     }
   }
 
-  private def postMessage(thread: Thread, command: CommandPostMessage)(implicit
+  private def generateReplyCreateMessageRef(
+      command: CommandPostMessage
+  )(implicit context: ActorContext[Command]): ActorRef[MessagePersistentAggregate.ReplyCreateMessage] =
+    context.messageAdapter[MessagePersistentAggregate.ReplyCreateMessage] {
+      case MessagePersistentAggregate.ReplyCreateMessageSucceeded(repMessageId) =>
+        InternalCommandPostMessage(
+          command.replyTo,
+          ReplyPostMessageSucceeded(command.threadId, repMessageId)
+        )
+      case MessagePersistentAggregate.ReplyCreateMessageFailed(error) =>
+        InternalCommandPostMessage(
+          command.replyTo,
+          ReplyPostMessageFailed(error)
+        )
+      case MessagePersistentAggregate.ReplyCreateMessageAlreadyExists =>
+        InternalCommandPostMessage(
+          command.replyTo,
+          ReplyPostMessageAlreadyExists
+        )
+      case MessagePersistentAggregate.ReplyCreateMessageAlreadyDeleted =>
+        InternalCommandPostMessage(
+          command.replyTo,
+          ReplyPostMessageAlreadyDeleted
+        )
+    }
+
+  private def generateReplyEditMessageRef(
+      command: CommandEditMessage
+  )(implicit context: ActorContext[Command]): ActorRef[MessagePersistentAggregate.ReplyEditMessage] =
+    context.messageAdapter[MessagePersistentAggregate.ReplyEditMessage] {
+      case MessagePersistentAggregate.ReplyEditMessageSucceeded(repMessageId) =>
+        InternalCommandEditMessage(
+          command.replyTo,
+          ReplyEditMessageSucceeded(command.threadId, repMessageId)
+        )
+      case MessagePersistentAggregate.ReplyEditMessageFailed(error) =>
+        InternalCommandEditMessage(
+          command.replyTo,
+          ReplyEditMessageFailed(error)
+        )
+      case MessagePersistentAggregate.ReplyEditMessageNotFound =>
+        InternalCommandEditMessage(
+          command.replyTo,
+          ReplyEditMessageNotFound
+        )
+      case MessagePersistentAggregate.ReplyEditMessageAlreadyDeleted =>
+        InternalCommandEditMessage(
+          command.replyTo,
+          ReplyEditMessageAlreadyDeleted
+        )
+    }
+
+  private def generateReplyDeleteMessageRef(
+      command: CommandDeleteMessage
+  )(implicit context: ActorContext[Command]): ActorRef[MessagePersistentAggregate.ReplyDeleteMessage] =
+    context.messageAdapter[MessagePersistentAggregate.ReplyDeleteMessage] {
+      case MessagePersistentAggregate.ReplyDeleteMessageSucceeded(repMessageId) =>
+        InternalCommandDeleteMessage(
+          command.replyTo,
+          ReplyDeleteMessageSucceeded(command.threadId, repMessageId)
+        )
+      case MessagePersistentAggregate.ReplyDeleteMessageFailed(error) =>
+        InternalCommandDeleteMessage(
+          command.replyTo,
+          ReplyDeleteMessageFailed(error)
+        )
+      case MessagePersistentAggregate.ReplyDeleteMessageNotFound =>
+        InternalCommandDeleteMessage(
+          command.replyTo,
+          ReplyDeleteMessageNotFound
+        )
+      case MessagePersistentAggregate.ReplyDeleteMessageAlreadyDeleted =>
+        InternalCommandDeleteMessage(
+          command.replyTo,
+          ReplyDeleteMessageAlreadyDeleted
+        )
+    }
+
+  private def postMessage(
+      thread: Thread,
+      command: CommandPostMessage,
+      actorRef: ActorRef[MessagePersistentAggregate.Command],
+      replyRef: ActorRef[MessagePersistentAggregate.ReplyCreateMessage]
+  )(implicit
       context: ActorContext[Command]
   ): CommandEffect =
     if (thread.canPostMessage(command.senderId)) {
-      val actorRef = getOrCreateChildActor(command.messageId)
-      val replyRef = context.messageAdapter[MessagePersistentAggregate.ReplyCreateMessage] {
-        case MessagePersistentAggregate.ReplyCreateMessageSucceeded(repMessageId) =>
-          InternalCommandPostMessage(
-            command.replyTo,
-            ReplyPostMessageSucceeded(command.threadId, repMessageId)
-          )
-        case MessagePersistentAggregate.ReplyCreateMessageFailed(error) =>
-          InternalCommandPostMessage(
-            command.replyTo,
-            ReplyPostMessageFailed(error)
-          )
-        case MessagePersistentAggregate.ReplyCreateMessageAlreadyExists =>
-          InternalCommandPostMessage(
-            command.replyTo,
-            ReplyPostMessageAlreadyExists
-          )
-        case MessagePersistentAggregate.ReplyCreateMessageAlreadyDeleted =>
-          InternalCommandPostMessage(
-            command.replyTo,
-            ReplyPostMessageAlreadyDeleted
-          )
-      }
       actorRef ! MessagePersistentAggregate.CommandCreateMessage(
         command.messageId,
         command.threadId,
@@ -234,33 +298,15 @@ object ThreadPersistentAggregate {
       Effect.reply(command.replyTo)(ReplyPostMessageFailed(s"$command"))
     }
 
-  private def editMessage(thread: Thread, command: CommandEditMessage)(implicit
+  private def editMessage(
+      thread: Thread,
+      command: CommandEditMessage,
+      actorRef: ActorRef[MessagePersistentAggregate.Command],
+      replyRef: ActorRef[MessagePersistentAggregate.ReplyEditMessage]
+  )(implicit
       context: ActorContext[Command]
   ): CommandEffect =
     if (thread.canEditMessage(command.senderId)) {
-      val actorRef = getOrCreateChildActor(command.messageId)
-      val replyRef = context.messageAdapter[MessagePersistentAggregate.ReplyEditMessage] {
-        case MessagePersistentAggregate.ReplyEditMessageSucceeded(repMessageId) =>
-          InternalCommandEditMessage(
-            command.replyTo,
-            ReplyEditMessageSucceeded(command.threadId, repMessageId)
-          )
-        case MessagePersistentAggregate.ReplyEditMessageFailed(error) =>
-          InternalCommandEditMessage(
-            command.replyTo,
-            ReplyEditMessageFailed(error)
-          )
-        case MessagePersistentAggregate.ReplyEditMessageNotFound =>
-          InternalCommandEditMessage(
-            command.replyTo,
-            ReplyEditMessageNotFound
-          )
-        case MessagePersistentAggregate.ReplyEditMessageAlreadyDeleted =>
-          InternalCommandEditMessage(
-            command.replyTo,
-            ReplyEditMessageAlreadyDeleted
-          )
-      }
       actorRef ! MessagePersistentAggregate.CommandEditMessage(
         command.messageId,
         command.threadId,
@@ -274,33 +320,15 @@ object ThreadPersistentAggregate {
       Effect.reply(command.replyTo)(ReplyEditMessageFailed(s"$command"))
     }
 
-  private def deleteMessage(thread: Thread, command: CommandDeleteMessage)(implicit
+  private def deleteMessage(
+      thread: Thread,
+      command: CommandDeleteMessage,
+      actorRef: ActorRef[MessagePersistentAggregate.Command],
+      replyRef: ActorRef[MessagePersistentAggregate.ReplyDeleteMessage]
+  )(implicit
       context: ActorContext[Command]
   ): CommandEffect =
     if (thread.canDeleteMessage(command.senderId)) {
-      val actorRef = getOrCreateChildActor(command.messageId)
-      val replyRef = context.messageAdapter[MessagePersistentAggregate.ReplyDeleteMessage] {
-        case MessagePersistentAggregate.ReplyDeleteMessageSucceeded(repMessageId) =>
-          InternalCommandDeleteMessage(
-            command.replyTo,
-            ReplyDeleteMessageSucceeded(command.threadId, repMessageId)
-          )
-        case MessagePersistentAggregate.ReplyDeleteMessageFailed(error) =>
-          InternalCommandDeleteMessage(
-            command.replyTo,
-            ReplyDeleteMessageFailed(error)
-          )
-        case MessagePersistentAggregate.ReplyDeleteMessageNotFound =>
-          InternalCommandDeleteMessage(
-            command.replyTo,
-            ReplyDeleteMessageNotFound
-          )
-        case MessagePersistentAggregate.ReplyDeleteMessageAlreadyDeleted =>
-          InternalCommandDeleteMessage(
-            command.replyTo,
-            ReplyDeleteMessageAlreadyDeleted
-          )
-      }
       actorRef ! MessagePersistentAggregate.CommandDeleteMessage(
         command.messageId,
         command.threadId,
@@ -313,33 +341,53 @@ object ThreadPersistentAggregate {
       Effect.reply(command.replyTo)(ReplyDeleteMessageFailed(s"$command"))
     }
 
-  private def commandHandler(implicit context: ActorContext[Command]): (State, Command) => CommandEffect =
-    (state, command) =>
-      state match {
-        case EmptyState =>
-          command match {
-            case c: CommandCreateThread => createThread(c)
-            case _                      => Effect.unhandled.thenNoReply()
-          }
-        case JustState(thread) =>
-          command match {
-            case d: CommandDeleteThread if thread.id == d.threadId         => deleteThread(thread, d)
-            case a: CommandAddMembers if thread.id == a.threadId           => addMembers(thread, a)
-            case p: CommandPostMessage if thread.id == p.threadId          => postMessage(thread, p)
-            case e: CommandEditMessage if thread.id == e.threadId          => editMessage(thread, e)
-            case d: CommandDeleteMessage if thread.id == d.threadId        => deleteMessage(thread, d)
-            case InternalCommandPostMessage(replyTo, replyPostMessage)     => Effect.reply(replyTo)(replyPostMessage)
-            case InternalCommandEditMessage(replyTo, replyEditMessage)     => Effect.reply(replyTo)(replyEditMessage)
-            case InternalCommandDeleteMessage(replyTo, replyDeleteMessage) => Effect.reply(replyTo)(replyDeleteMessage)
-            case _                                                         => Effect.unhandled.thenNoReply()
-          }
-        case _: DeletedState =>
-          Effect.unhandled.thenNoReply()
-      }
-
-  def apply(id: ThreadId): Behavior[Command] =
+  def apply(
+      id: ThreadId,
+      childActorNameF: MessageId => String,
+      childBehaviorF: MessageId => Behavior[MessagePersistentAggregate.Command]
+  ): Behavior[Command] =
     Behaviors.setup { implicit context =>
-      AggregateActorGenerator[Command, Event, State](EmptyState)(commandHandler)(id)
+      AggregateActorGenerator[Command, Event, State](id, EmptyState) { (state, command) =>
+        state match {
+          case EmptyState =>
+            command match {
+              case c: CommandCreateThread => createThread(c)
+              case _                      => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
+            }
+          case JustState(thread) =>
+            command match {
+              case d: CommandDeleteThread if thread.id == d.threadId => deleteThread(thread, d)
+              case a: CommandAddMembers if thread.id == a.threadId   => addMembers(thread, a)
+              case p: CommandPostMessage if thread.id == p.threadId =>
+                postMessage(
+                  thread,
+                  p,
+                  getOrCreateChildActor(p.messageId, childActorNameF, childBehaviorF),
+                  generateReplyCreateMessageRef(p)
+                )
+              case e: CommandEditMessage if thread.id == e.threadId =>
+                editMessage(
+                  thread,
+                  e,
+                  getOrCreateChildActor(e.messageId, childActorNameF, childBehaviorF),
+                  generateReplyEditMessageRef(e)
+                )
+              case d: CommandDeleteMessage if thread.id == d.threadId =>
+                deleteMessage(
+                  thread,
+                  d,
+                  getOrCreateChildActor(d.messageId, childActorNameF, childBehaviorF),
+                  generateReplyDeleteMessageRef(d)
+                )
+              case InternalCommandPostMessage(replyTo, replyPostMessage) => Effect.reply(replyTo)(replyPostMessage)
+              case InternalCommandEditMessage(replyTo, replyEditMessage) => Effect.reply(replyTo)(replyEditMessage)
+              case InternalCommandDeleteMessage(replyTo, replyDeleteMessage) =>
+                Effect.reply(replyTo)(replyDeleteMessage)
+              case _ => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
+            }
+          case _: DeletedState => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
+        }
+      }
     }
 
 }

@@ -49,7 +49,7 @@ class ThreadPersistentAggregateSpec
 
     "Threadを作成し削除するまでの一連のコマンドとイベントが成功することを確認する" in {
       val threadId   = ThreadId()
-      val behavior   = ThreadPersistentAggregate(threadId)
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread1    = createThread(threadId, esbTestKit)
       val thread2    = addMembers(esbTestKit, thread1)
@@ -58,7 +58,7 @@ class ThreadPersistentAggregateSpec
 
     "Threadを作成しメッセージを送信・編集・削除する" in {
       val threadId   = ThreadId()
-      val behavior   = ThreadPersistentAggregate(threadId)
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread     = createThread(threadId, esbTestKit)
 
@@ -70,7 +70,7 @@ class ThreadPersistentAggregateSpec
 
     "Threadを作成し同じメッセージIDを2回送信するとエラーになる" in {
       val threadId   = ThreadId()
-      val behavior   = ThreadPersistentAggregate(threadId)
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread     = createThread(threadId, esbTestKit)
 
@@ -85,7 +85,7 @@ class ThreadPersistentAggregateSpec
 
     "Threadを作成し存在しないメッセージを編集するとエラーになる" in {
       val threadId   = ThreadId()
-      val behavior   = ThreadPersistentAggregate(threadId)
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread     = createThread(threadId, esbTestKit)
 
@@ -98,7 +98,7 @@ class ThreadPersistentAggregateSpec
 
     "Threadを作成し存在しないメッセージを削除するとエラーになる" in {
       val threadId   = ThreadId()
-      val behavior   = ThreadPersistentAggregate(threadId)
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread     = createThread(threadId, esbTestKit)
 
@@ -111,7 +111,7 @@ class ThreadPersistentAggregateSpec
 
     "Threadを削除したメッセージに作成・編集・削除のコマンドを投げるとエラーになる" in {
       val threadId   = ThreadId()
-      val behavior   = ThreadPersistentAggregate(threadId)
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
       val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
       val thread     = createThread(threadId, esbTestKit)
 
@@ -136,6 +136,21 @@ class ThreadPersistentAggregateSpec
         ]
     }
 
+    "Threadを作成しメッセージを送信したあとRestartしたThreadにメッセージ編集を投げる" in {
+      val threadId   = ThreadId()
+      val behavior   = ThreadPersistentAggregate(threadId, _.asString, MessagePersistentAggregate.apply)
+      val esbTestKit = EventSourcedBehaviorTestKit[Command, Event, State](system, behavior)
+      val thread     = createThread(threadId, esbTestKit)
+
+      val messageId = MessageId()
+      postMessage(esbTestKit, thread, messageId)
+
+      esbTestKit.restart()
+
+      postMessage(esbTestKit, thread, MessageId())
+      editMessage(esbTestKit, thread, messageId)
+      deleteMessage(esbTestKit, thread, messageId)
+    }
   }
 
   private def deleteMessage(

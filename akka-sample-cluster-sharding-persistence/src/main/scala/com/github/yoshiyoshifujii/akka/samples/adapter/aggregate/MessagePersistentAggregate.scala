@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ ActorRef, Behavior }
 import akka.persistence.typed.scaladsl.{ Effect, ReplyEffect }
 import com.github.yoshiyoshifujii.akka.samples.domain.model._
@@ -131,35 +131,33 @@ object MessagePersistentAggregate {
     else
       Effect.reply(command.replyTo)(ReplyCreateMessageFailed(s"$command"))
 
-  private def commandHandler(implicit context: ActorContext[Command]): (State, Command) => CommandEffect =
-    (state, command) =>
-      state match {
-        case EmptyState =>
-          command match {
-            case c: CommandCreateMessage => createMessage(c)
-            case e: CommandEditMessage   => Effect.reply(e.replyTo)(ReplyEditMessageNotFound)
-            case d: CommandDeleteMessage => Effect.reply(d.replyTo)(ReplyDeleteMessageNotFound)
-            case _                       => Effect.unhandled.thenNoReply()
-          }
-        case JustState(message) =>
-          command match {
-            case c: CommandCreateMessage                              => Effect.reply(c.replyTo)(ReplyCreateMessageAlreadyExists)
-            case e: CommandEditMessage if message.id == e.messageId   => editMessage(message, e)
-            case d: CommandDeleteMessage if message.id == d.messageId => deleteMessage(message, d)
-            case _                                                    => Effect.unhandled.thenNoReply()
-          }
-        case _: DeletedState =>
-          command match {
-            case c: CommandCreateMessage => Effect.reply(c.replyTo)(ReplyCreateMessageAlreadyDeleted)
-            case e: CommandEditMessage   => Effect.reply(e.replyTo)(ReplyEditMessageAlreadyDeleted)
-            case d: CommandDeleteMessage => Effect.reply(d.replyTo)(ReplyDeleteMessageAlreadyDeleted)
-            case _                       => Effect.unhandled.thenNoReply()
-          }
-      }
-
   def apply(id: MessageId): Behavior[Command] =
     Behaviors.setup { implicit context =>
-      AggregateActorGenerator[Command, Event, State](EmptyState)(commandHandler)(id)
+      AggregateActorGenerator[Command, Event, State](id, EmptyState) { (state, command) =>
+        state match {
+          case EmptyState =>
+            command match {
+              case c: CommandCreateMessage => createMessage(c)
+              case e: CommandEditMessage   => Effect.reply(e.replyTo)(ReplyEditMessageNotFound)
+              case d: CommandDeleteMessage => Effect.reply(d.replyTo)(ReplyDeleteMessageNotFound)
+              case _                       => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
+            }
+          case JustState(message) =>
+            command match {
+              case c: CommandCreateMessage                              => Effect.reply(c.replyTo)(ReplyCreateMessageAlreadyExists)
+              case e: CommandEditMessage if message.id == e.messageId   => editMessage(message, e)
+              case d: CommandDeleteMessage if message.id == d.messageId => deleteMessage(message, d)
+              case _                                                    => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
+            }
+          case _: DeletedState =>
+            command match {
+              case c: CommandCreateMessage => Effect.reply(c.replyTo)(ReplyCreateMessageAlreadyDeleted)
+              case e: CommandEditMessage   => Effect.reply(e.replyTo)(ReplyEditMessageAlreadyDeleted)
+              case d: CommandDeleteMessage => Effect.reply(d.replyTo)(ReplyDeleteMessageAlreadyDeleted)
+              case _                       => throwIllegalStateException[Command, Event, State, CommandEffect](state, command)
+            }
+        }
+      }
     }
 
 }
