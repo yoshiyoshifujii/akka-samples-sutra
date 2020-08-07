@@ -46,13 +46,11 @@ class ShardedCounterSpecMultiJvmNode3 extends ShardedCounterSpec
 
 class ShardedCounterSpec extends MultiNodeSpec(ShardedCounterSpecConfig) with MultiNodeSpecHelper {
   import ShardedCounterSpecConfig._
-  override protected def beforeAll(): Unit = multiNodeSpecBeforeAll()
-  override protected def afterAll(): Unit  = multiNodeSpecAfterAll()
-  override def initialParticipants: Int    = roles.size
-
+  override protected def beforeAll(): Unit       = multiNodeSpecBeforeAll()
+  override protected def afterAll(): Unit        = multiNodeSpecAfterAll()
+  override def initialParticipants: Int          = roles.size
   implicit val typedSystem: ActorSystem[Nothing] = system.toTyped
-
-  private val dilated: FiniteDuration = 15.seconds.dilated
+  private val dilated: FiniteDuration            = 15.seconds.dilated
 
   "ShardedCounterSpec multi-jvm spec" must {
 
