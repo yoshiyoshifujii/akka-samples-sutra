@@ -12,7 +12,6 @@ import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpec }
 import akka.testkit.TestDuration
 import com.github.yoshiyoshifujii.akka.samples.MultiNodeSpecHelper
 import com.typesafe.config.ConfigFactory
-import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 
