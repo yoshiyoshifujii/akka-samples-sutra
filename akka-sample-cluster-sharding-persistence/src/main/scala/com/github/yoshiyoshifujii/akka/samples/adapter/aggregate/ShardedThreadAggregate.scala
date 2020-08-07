@@ -10,7 +10,7 @@ object ShardedThreadAggregate
       ThreadPersistentAggregate.Stop.type
     ] {
 
-  override val name: String                              = "threads"
+  override val name: String                                        = "threads"
   override protected val typeKeyName: String                       = "Threads"
   override protected val actorName: String                         = ThreadAggregates.name
   override protected val idle: ThreadPersistentAggregate.Idle.type = ThreadPersistentAggregate.Idle

@@ -1,8 +1,9 @@
 package com.github.yoshiyoshifujii.akka.samples.adapter.aggregate
 
 import akka.actor.testkit.typed.scaladsl.TestProbe
-import akka.actor.typed.ActorSystem
+import akka.actor.typed.{ ActorRef, ActorSystem }
 import akka.actor.typed.scaladsl.adapter._
+import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.{ Cluster, ClusterEvent }
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
@@ -144,11 +145,12 @@ class ShardedThreadAggregateSpec
     val clusterSharding = ClusterSharding(system.toTyped)
     val childBehavior =
       ThreadAggregates(_.asString)(id => ThreadPersistentAggregate(id, _.asString, MessagePersistentAggregate.apply))
-    ShardedThreadAggregate.initClusterSharding(
-      clusterSharding,
-      childBehavior,
-      15.seconds
-    )
+    val shardRegion: ActorRef[ShardingEnvelope[ThreadPersistentAggregate.Command]] =
+      ShardedThreadAggregate.initClusterSharding(
+        clusterSharding,
+        childBehavior,
+        15.seconds
+      )
     clusterSharding
   }
 }
