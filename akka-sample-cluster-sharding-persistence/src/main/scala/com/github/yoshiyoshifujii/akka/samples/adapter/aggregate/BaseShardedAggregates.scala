@@ -36,7 +36,7 @@ abstract class BaseShardedAggregates[
           entityContext.shard ! ClusterSharding.Passivate(ctx.self)
           Behaviors.same
         case _: Stop =>
-          ctx.log.debug("> Changed state: Stop")
+          ctx.log.debug("> Changed state: Stop [{}]", ctx.self.path.address)
           Behaviors.stopped
         case msg =>
           childRef ! msg
