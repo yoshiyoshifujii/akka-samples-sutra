@@ -13,6 +13,6 @@ lazy val root = (project in file("."))
         "ch.qos.logback"     % "logback-classic"          % "1.2.3" excludeAll (
           ExclusionRule(organization = "org.slf4j")
         ),
-        "org.scalatest" %% "scalatest" % "3.2.0" % Test
+        "org.scalatest" %% "scalatest" % "3.2.1" % Test
       )
   )
