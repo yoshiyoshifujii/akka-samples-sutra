@@ -288,8 +288,6 @@ object ThreadPersistentAggregate {
       command: CommandPostMessage,
       actorRef: ActorRef[MessagePersistentAggregate.Command],
       replyRef: ActorRef[MessagePersistentAggregate.ReplyCreateMessage]
-  )(implicit
-      context: ActorContext[Command]
   ): CommandEffect =
     if (thread.canPostMessage(command.senderId)) {
       actorRef ! MessagePersistentAggregate.CommandCreateMessage(
@@ -310,8 +308,6 @@ object ThreadPersistentAggregate {
       command: CommandEditMessage,
       actorRef: ActorRef[MessagePersistentAggregate.Command],
       replyRef: ActorRef[MessagePersistentAggregate.ReplyEditMessage]
-  )(implicit
-      context: ActorContext[Command]
   ): CommandEffect =
     if (thread.canEditMessage(command.senderId)) {
       actorRef ! MessagePersistentAggregate.CommandEditMessage(
@@ -332,8 +328,6 @@ object ThreadPersistentAggregate {
       command: CommandDeleteMessage,
       actorRef: ActorRef[MessagePersistentAggregate.Command],
       replyRef: ActorRef[MessagePersistentAggregate.ReplyDeleteMessage]
-  )(implicit
-      context: ActorContext[Command]
   ): CommandEffect =
     if (thread.canDeleteMessage(command.senderId)) {
       actorRef ! MessagePersistentAggregate.CommandDeleteMessage(
